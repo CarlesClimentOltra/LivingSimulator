@@ -140,7 +140,13 @@ impl Region {
                     wage.clamp(0, u32::MAX as i64) as u32,
                 );
             }
-        } else if act == c.sleep_activity {
+        }
+    }
+
+    /// Journals "woke up" when a sleeping agent starts doing something else.
+    fn note_wake(&mut self, a: AgentId, t: Tick, next: u16) {
+        let sleep = catalog().sleep_activity;
+        if self.agents.act[a as usize] == sleep && next != sleep {
             self.journal(a, t, JournalKind::WokeUp, 0, 0);
         }
     }
@@ -151,11 +157,17 @@ impl Region {
         let def = &c.content.activities[act as usize];
         let place = self.agents.place[i];
         let until = until.max(t + 1);
+        let was_asleep = self.agents.act[i] == c.sleep_activity;
+        self.note_wake(a, t, act);
         self.agents.act[i] = act;
         self.agents.until[i] = until;
         self.agents.flags[i] &= !flags::BY_CAR;
         match def.kind {
-            ActivityKind::Sleep => self.journal(a, t, JournalKind::WentToSleep, act, place),
+            ActivityKind::Sleep => {
+                if !was_asleep {
+                    self.journal(a, t, JournalKind::WentToSleep, act, place);
+                }
+            }
             ActivityKind::EatHome => {
                 let hh = self.agents.household[i];
                 if hh != NONE && self.households.food[hh as usize] > 0 {
@@ -237,6 +249,7 @@ impl Region {
         let from = self.agents.place[i];
         let mode = self.mode_for(a, from, dest, t);
         let ticks = self.trip_ticks(from, dest, mode);
+        self.note_wake(a, t, next);
         self.set_place(a, NONE);
         let ag = &mut self.agents;
         ag.act[i] = ACT_TRAVEL;
@@ -435,9 +448,12 @@ impl Region {
         let energy = self.agents.needs[i][Need::Energy as usize];
         let exhausted = energy < 800;
         if let Some(w) = wake.or(if exhausted { Some(t + 7 * 60) } else { None }) {
-            let w = w.min(free_until.saturating_sub(45)).max(t + 20);
-            self.go(a, t, home, c.sleep_activity, w);
-            return;
+            // Get up early enough for obligations; never doze off for a few minutes.
+            let w = w.min(free_until.saturating_sub(45));
+            if w > t + 15 {
+                self.go(a, t, home, c.sleep_activity, w);
+                return;
+            }
         }
         free_until = free_until.min(next_sleep);
 

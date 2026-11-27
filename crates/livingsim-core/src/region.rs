@@ -386,7 +386,8 @@ impl Region {
     }
 
     fn write_news(&mut self, t: Tick) {
-        if t == 0 {
+        // Nothing happened yet (the region was just generated).
+        if self.today.decisions == 0 {
             return;
         }
         let d = self.today.clone();
