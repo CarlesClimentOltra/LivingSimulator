@@ -55,16 +55,17 @@ jobs:
             git commit --allow-empty -m "chore: start benchmark history"
             git push origin bench-data
           fi
+      # History and regression alerts are kept for main only (pull requests are checked
+      # against the hard targets above).
       - uses: benchmark-action/github-action-benchmark@v1
+        if: github.event_name != 'pull_request'
         with:
           name: Living Simulator
           tool: customSmallerIsBetter
           output-file-path: bench.json
           gh-pages-branch: bench-data
           benchmark-data-dir-path: bench
-          auto-push: ${{ github.event_name != 'pull_request' }}
-          # Pull requests never write history, and do not need it to exist.
-          skip-fetch-gh-pages: ${{ github.event_name == 'pull_request' }}
+          auto-push: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: "125%"
           comment-on-alert: true
