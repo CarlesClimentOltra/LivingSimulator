@@ -66,6 +66,8 @@ pub struct Firm {
     pub positions: u16,
     pub sold_today: u32,
     pub sold_yesterday: u32,
+    /// Smoothed daily profit (about a week), used for hiring and layoffs.
+    pub profit_avg: i64,
 }
 
 impl Firm {
@@ -310,9 +312,10 @@ impl Region {
                 positions: def.jobs.iter().map(|j| j.count).sum(),
                 sold_today: 0,
                 sold_yesterday: 0,
+                profit_avg: 0,
             });
         }
-        // Calibrate private positions so that about 92% of the workforce can have a job
+        // Calibrate private positions so that about 96% of the workforce (demand-based staffing and job changes bring real unemployment to ~8%) can have a job
         // (the rest is natural unemployment).
         {
             let cat = catalog();
@@ -337,12 +340,119 @@ impl Region {
                 .filter(|f| f.is_private())
                 .map(|f| f.positions as i64)
                 .sum();
-            let target = (workforce * 92 / 100 - public).max(0);
+            let target = (workforce * 96 / 100 - public).max(0);
             if private > target && private > 0 {
                 for f in e.firms.iter_mut().filter(|f| f.is_private()) {
                     f.positions =
                         ((f.positions as i64 * target + private / 2) / private).max(1) as u16;
                 }
+            }
+        }
+        // Workers beyond a firm's calibrated positions start out looking for a job.
+        {
+            let mut staff: Vec<u16> = vec![0; e.firms.len()];
+            for a in 0..self.agents.len() {
+                let w = self.agents.work[a];
+                if w == NONE || self.agents.profession[a] == u16::MAX {
+                    continue;
+                }
+                let Some(f) = e.firm_of.get(w as usize).copied().filter(|f| *f != NONE) else {
+                    continue;
+                };
+                let fm = &e.firms[f as usize];
+                if staff[f as usize] >= fm.positions && fm.is_private() {
+                    self.agents.work[a] = NONE;
+                    self.agents.profession[a] = u16::MAX;
+                    self.agents.schedule[a] = catalog().schedule_unemployed;
+                } else {
+                    staff[f as usize] += 1;
+                }
+            }
+        }
+        // Initial job matching: job seekers fill the free positions (nearest of a sample).
+        {
+            let cat = catalog();
+            let mut staff: Vec<Vec<u16>> = e
+                .firms
+                .iter()
+                .map(|f| {
+                    vec![
+                        0u16;
+                        c.buildings[self.buildings.def[f.building as usize] as usize]
+                            .jobs
+                            .len()
+                    ]
+                })
+                .collect();
+            let mut total: Vec<u16> = vec![0; e.firms.len()];
+            for a in 0..self.agents.len() {
+                let w = self.agents.work[a];
+                let p = self.agents.profession[a];
+                if w == NONE || p == u16::MAX {
+                    continue;
+                }
+                let Some(f) = e.firm_of.get(w as usize).copied().filter(|f| *f != NONE) else {
+                    continue;
+                };
+                let jobs = &c.buildings[self.buildings.def[w as usize] as usize].jobs;
+                if let Some(j) = jobs.iter().position(|j| j.profession == p) {
+                    staff[f as usize][j] += 1;
+                }
+                total[f as usize] += 1;
+            }
+            // Open vacancies: (firm, job index), one entry per free position.
+            let mut vacancies: Vec<(u32, usize)> = Vec::new();
+            for (f, fm) in e.firms.iter().enumerate() {
+                let jobs = &c.buildings[self.buildings.def[fm.building as usize] as usize].jobs;
+                let mut free = fm.positions.saturating_sub(total[f]);
+                for (j, js) in jobs.iter().enumerate() {
+                    let n = js.count.saturating_sub(staff[f][j]).min(free);
+                    for _ in 0..n {
+                        vacancies.push((f as u32, j));
+                    }
+                    free -= n;
+                }
+            }
+            rng.shuffle(&mut vacancies);
+            for a in 0..self.agents.len() as u32 {
+                if vacancies.is_empty() {
+                    break;
+                }
+                let i = a as usize;
+                if !self.agents.alive(a)
+                    || self.agents.is_visitor(a)
+                    || self.agents.schedule[i] != cat.schedule_unemployed
+                {
+                    continue;
+                }
+                let age = age_years(self.agents.birth[i], self.tick);
+                if !(18..=65).contains(&age) {
+                    continue;
+                }
+                let mut best: Option<(u32, usize)> = None;
+                for _ in 0..12 {
+                    let k = rng.below(vacancies.len());
+                    let (f, j) = vacancies[k];
+                    let b = e.firms[f as usize].building;
+                    let prof =
+                        c.buildings[self.buildings.def[b as usize] as usize].jobs[j].profession;
+                    if c.professions[prof as usize].min_age as u32 > age {
+                        continue;
+                    }
+                    let d = self.manhattan(self.agents.home[i], b);
+                    if best.is_none_or(|(bd, bk)| (d, k) < (bd, bk)) {
+                        best = Some((d, k));
+                    }
+                }
+                let Some((_, k)) = best else { continue };
+                let (f, j) = vacancies.swap_remove(k);
+                let b = e.firms[f as usize].building;
+                let prof = c.buildings[self.buildings.def[b as usize] as usize].jobs[j].profession;
+                let pd = &c.professions[prof as usize];
+                self.agents.work[i] = b;
+                self.agents.profession[i] = prof;
+                self.agents.schedule[i] =
+                    pd.schedules[(rng.below(pd.schedules.len())) % pd.schedules.len()];
             }
         }
         // Treasury: enough for `treasury_start_days` of public wages, pensions and benefits.
@@ -680,6 +790,7 @@ impl Region {
                 f.costs_yesterday = std::mem::take(&mut f.costs_today);
                 f.customers_yesterday = std::mem::take(&mut f.customers_today);
                 f.sold_yesterday = std::mem::take(&mut f.sold_today);
+                f.profit_avg += (f.revenue_yesterday - f.costs_yesterday - f.profit_avg) / 7;
             }
             let spent =
                 e.yesterday.wages_public + e.yesterday.pensions_benefits + e.yesterday.maintenance;
@@ -1177,7 +1288,7 @@ impl Region {
             } else {
                 // Too many staff for the customers it has, and losing money: let one go.
                 let fm = &self.systems.economy.firms[f];
-                let losing = fm.revenue_yesterday < fm.costs_yesterday;
+                let losing = fm.profit_avg < 0;
                 if losing && staff[f].len() as u32 > self.desired_staff(f as u32) + 1 {
                     if let Some(a) = staff[f].pop() {
                         self.lay_off(a, t);
@@ -1270,12 +1381,19 @@ impl Region {
             }
             let b = fm.building;
             let def = &c.buildings[self.buildings.def[b as usize] as usize];
-            let desired = self.desired_staff(f as u32);
+            // Profitable firms hire up to their positions; others only up to what their
+            // demand justifies (so they do not rehire someone they just let go).
+            let profitable = fm.profit_avg >= 0;
+            let limit = if profitable || !fm.is_private() {
+                fm.positions as u32
+            } else {
+                self.desired_staff(f as u32).min(fm.positions as u32)
+            };
             let _ = def;
-            if staff[f].len() as u32 >= desired {
+            if staff[f].len() as u32 >= limit {
                 continue;
             }
-            let mut room = desired - staff[f].len() as u32;
+            let mut room = limit - staff[f].len() as u32;
             let mut hires = 0;
             for js in &def.jobs {
                 let have = staff[f]
