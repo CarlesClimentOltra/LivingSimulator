@@ -1,0 +1,59 @@
+# Benchmarks: cost per simulated day (10k / 100k / 1M agents), memory per agent,
+# checkpoint size and WASM catch-up time. Results are stored as JSON in the `bench-data`
+# branch (tiny files, never snapshots) and an alert is raised on regressions.
+name: Benchmarks
+
+on:
+  push:
+    branches: [main]
+    paths: ["crates/**", "data/**", "Cargo.lock"]
+  pull_request:
+    paths: ["crates/**", "data/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.130
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ env.WASM_BINDGEN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Native benchmarks (10k, 100k, 1M agents)
+        run: cargo run --release -p livingsim-bench --bin bench-report -- --full > native.json
+      - name: WASM catch-up benchmark
+        run: BENCH_OUT=wasm.json ./scripts/test-wasm.sh
+      - name: Merge and check hard targets
+        run: |
+          jq -s 'add' native.json wasm.json > bench.json
+          cat bench.json
+          ./scripts/check-bench-targets.sh bench.json
+      - uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Living Simulator
+          tool: customSmallerIsBetter
+          output-file-path: bench.json
+          gh-pages-branch: bench-data
+          benchmark-data-dir-path: bench
+          auto-push: ${{ github.event_name == 'push' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alert-threshold: "125%"
+          comment-on-alert: true
+          fail-on-alert: false
+          summary-always: true

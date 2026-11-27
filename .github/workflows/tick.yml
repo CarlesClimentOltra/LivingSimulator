@@ -1,0 +1,111 @@
+# Advances the shared world and deploys the site + world data to GitHub Pages.
+#
+# Runs every ~20 minutes, but the design does not depend on punctuality: the runner
+# simulates LEAD hours ahead of real time, so visitors are unaffected by late or missed
+# runs (docs/ARCHITECTURE.md §5.3). Snapshots are never committed to git: they live only in
+# the Pages artifact, plus a daily backup asset in the `world-backups` release.
+#
+# One-time setup: Settings → Pages → Source: "GitHub Actions".
+name: Tick the world
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md", ".github/ISSUE_TEMPLATE/**"]
+
+permissions:
+  contents: write # release backups
+  pages: write
+  id-token: write
+  actions: write # keep the schedule enabled
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  WASM_BINDGEN_VERSION: 0.2.130
+  LEAD_HOURS: 6
+  BACKUP_RELEASE: world-backups
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ env.WASM_BINDGEN_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build runner, WASM and website
+        run: |
+          cargo build --release -p livingsim-runner
+          cd web && npm ci && npm run wasm && npm run build
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Fetch the latest backup (used only if the published state is missing)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p restore
+          latest=$(gh release view "$BACKUP_RELEASE" --json assets -q '.assets | map(.name) | sort | last' 2>/dev/null || true)
+          if [ -n "$latest" ]; then
+            gh release download "$BACKUP_RELEASE" --pattern "$latest" --dir restore && echo "RESTORE=restore/$latest" >> "$GITHUB_ENV"
+          fi
+
+      - name: Advance the world
+        run: |
+          args=(tick --base "${{ steps.pages.outputs.base_url }}/world" --out web/dist/world
+                --lead-hours "$LEAD_HOURS" --seed "${{ vars.LIVINGSIM_SEED || 1 }}" --backup backup.bin.zst)
+          [ -n "${{ vars.LIVINGSIM_EPOCH_MS }}" ] && args+=(--epoch-ms "${{ vars.LIVINGSIM_EPOCH_MS }}")
+          [ -n "${RESTORE:-}" ] && args+=(--restore "$RESTORE")
+          ./target/release/livingsim-runner "${args[@]}"
+          ./target/release/livingsim-runner verify --dir web/dist/world
+          du -sh web/dist web/dist/world
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Daily backup to a release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="world-$(date -u +%Y-%m-%d).bin.zst"
+          gh release view "$BACKUP_RELEASE" >/dev/null 2>&1 || \
+            gh release create "$BACKUP_RELEASE" --title "World backups" --latest=false \
+              --notes "Daily snapshots of the shared world (restored automatically if Pages loses its data). Not a software release."
+          if ! gh release view "$BACKUP_RELEASE" --json assets -q '.assets[].name' | grep -qx "$name"; then
+            cp backup.bin.zst "$name"
+            gh release upload "$BACKUP_RELEASE" "$name"
+            # Keep the 30 most recent backups.
+            gh release view "$BACKUP_RELEASE" --json assets -q '.assets | map(.name) | sort | reverse | .[30:] | .[]' |
+              while read -r old; do gh release delete-asset "$BACKUP_RELEASE" "$old" --yes; done
+          fi
+
+      - name: Keep the schedule enabled (GitHub disables it after 60 days without activity)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/tick.yml/enable" || true
