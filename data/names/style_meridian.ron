@@ -1,0 +1,28 @@
+// "Meridian" naming style: soft, vowel-rich invented names.
+(
+    id: "meridian",
+    female: (
+        first: ["A", "Be", "Ca", "Da", "E", "Fe", "Gi", "I", "La", "Ma", "Ne", "O", "Pa", "Ri", "Sa", "Te", "Va", "Ze", "Lu", "Mi", "No", "Ari", "Ele", "Iso"],
+        middle: ["la", "ri", "na", "ve", "li", "mi", "ra", "se", "ta", "do", "lo"],
+        last: ["na", "ra", "lia", "nia", "ssa", "ra", "la", "ena", "ina", "ia", "ela", "ita", "ya"],
+        syllables: (2, 3),
+    ),
+    male: (
+        first: ["A", "Bo", "Ca", "Da", "E", "Fa", "Gu", "I", "Le", "Ma", "Ni", "O", "Pe", "Ro", "Sa", "Te", "Vi", "Za", "Lu", "Ma", "To", "Ar", "En", "Ro"],
+        middle: ["la", "ri", "ne", "ve", "li", "mo", "ra", "se", "ta", "do", "lo", "be"],
+        last: ["no", "ro", "lo", "rio", "do", "to", "nel", "ran", "mar", "nio", "el", "an", "is"],
+        syllables: (2, 3),
+    ),
+    family: (
+        first: ["Al", "Bar", "Cas", "Del", "Es", "Fon", "Gar", "Hor", "Il", "Lor", "Mon", "Nar", "Or", "Pal", "Quin", "Ros", "Sal", "Tor", "Val", "Ver", "Mar", "Cal", "Ben"],
+        middle: ["a", "e", "i", "o", "da", "ri", "ve", "la", "mi"],
+        last: ["dena", "rino", "vez", "lara", "tes", "dal", "mira", "sola", "nes", "ret", "vella", "dor", "tani", "quez"],
+        syllables: (2, 3),
+    ),
+    places: (
+        first: ["Bel", "Cor", "Val", "Mar", "San", "Lor", "Al", "Mir", "Ros", "Ser", "Ven", "Ol", "Cal", "Sol"],
+        middle: ["a", "e", "i", "o", "da", "ri", "na"],
+        last: ["mira", "vento", "lena", "dora", "mar", "via", "brisa", "nova", "luna", "sena", "porta"],
+        syllables: (2, 3),
+    ),
+)

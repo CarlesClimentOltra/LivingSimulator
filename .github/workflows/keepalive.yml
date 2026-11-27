@@ -1,0 +1,40 @@
+# GitHub disables scheduled workflows in public repositories after 60 days without
+# repository activity. The tick workflow re-enables itself on every run; this monthly job
+# is a second line of defence (see docs/ARCHITECTURE.md §11.3).
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "17 4 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Re-enable scheduled workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for wf in tick.yml keepalive.yml; do
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$wf/enable" && echo "enabled $wf" || true
+          done
+      - name: Last resort — touch the keepalive branch when the repo has been quiet
+        run: |
+          last=$(git log -1 --format=%ct)
+          age_days=$(( ($(date +%s) - last) / 86400 ))
+          echo "last commit on ${GITHUB_REF_NAME}: ${age_days} days ago"
+          if [ "$age_days" -ge 50 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git checkout -B keepalive
+            git commit --allow-empty -m "chore: keepalive ($(date -u +%F))"
+            git push -f origin keepalive
+          fi

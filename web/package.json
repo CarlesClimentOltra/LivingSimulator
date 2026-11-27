@@ -1,0 +1,23 @@
+{
+  "name": "livingsim-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "wasm": "cd .. && cargo build --release --target wasm32-unknown-unknown -p livingsim-wasm && wasm-bindgen --target web --out-dir web/src/wasm target/wasm32-unknown-unknown/release/livingsim_wasm.wasm",
+    "world": "cd .. && cargo run --release -p livingsim-runner -- tick --base web/public/world --out web/public/world --lead-hours 2",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.187.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.8"
+  }
+}

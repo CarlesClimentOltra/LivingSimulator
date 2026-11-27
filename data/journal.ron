@@ -1,0 +1,27 @@
+// Text templates. Placeholders: {name} (the inhabitant), {place} (a building or region),
+// {activity} (what they are doing), {amount} (money), {n} (a number), {city} (region).
+(
+    journal: {
+        "woke_up": "Woke up at home.",
+        "went_to": "Set off towards {place}.",
+        "started": "Started {activity} at {place}.",
+        "went_to_sleep": "Went to bed.",
+        "shopped": "Bought groceries at {place} for {amount}.",
+        "shelves_empty": "Found the shelves empty at {place}.",
+        "got_paid": "Got paid {amount} for the day's work.",
+        "left_for_region": "Left for a trip to {place}.",
+        "back_from_region": "Came back home from {place}, having spent {amount}.",
+        "arrived_from_region": "Arrived in town for a visit.",
+        "no_food_at_home": "Wanted to eat at home but the fridge was empty.",
+        "moved_in": "Moved into a home at {place}.",
+        "birthday": "Turned {n} today.",
+    },
+    news: {
+        "daily_summary": ("Another day in {city}", "{n} trips were made around town yesterday."),
+        "busiest_place": ("{place} was the place to be", "{n} people visited {place} yesterday."),
+        "shelves_empty": ("Empty shelves at {place}", "Customers found nothing to buy at {place} {n} times yesterday."),
+        "visitors": ("Visitors from {place}", "{n} people came from {place} to spend the day in town."),
+        "food_delivery": ("Fresh produce arrives", "{n} meals worth of food arrived from the farms of {place}."),
+        "city_founded": ("Welcome to {city}", "The town of {city} is home to {n} people."),
+    },
+)

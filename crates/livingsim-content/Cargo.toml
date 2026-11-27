@@ -1,0 +1,17 @@
+[package]
+name = "livingsim-content"
+description = "Content schemas, loader and validator for Living Simulator's /data directory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+ron = { workspace = true, optional = true }
+
+[features]
+default = []
+# Loading RON from disk. Only build scripts and tools need it; the simulation core reads the
+# pre-compiled blob instead.
+loader = ["dep:ron"]

@@ -1,0 +1,13 @@
+// Needs of every inhabitant. Values go from 0 (empty) to 10000 (fully satisfied).
+// The set of needs is fixed by the engine; this file tunes them.
+[
+    (need: "hunger",  name: "Hunger",  decay_per_hour: 600, critical: 2500, weight: 120),
+    (need: "energy",  name: "Energy",  decay_per_hour: 520, critical: 2000, weight: 110),
+    (need: "hygiene", name: "Hygiene", decay_per_hour: 300, critical: 2500, weight: 70),
+    (need: "fun",     name: "Fun",     decay_per_hour: 380, critical: 2000, weight: 80),
+    (need: "social",  name: "Social",  decay_per_hour: 280, critical: 2000, weight: 70),
+    // Money and safety are derived values in Phase 1 (no decay); they become real in
+    // Phase 2 (economy) and Phase 5 (crime).
+    (need: "money",   name: "Money",   decay_per_hour: 0,   critical: 2000, weight: 60),
+    (need: "safety",  name: "Safety",  decay_per_hour: 0,   critical: 3000, weight: 60),
+]

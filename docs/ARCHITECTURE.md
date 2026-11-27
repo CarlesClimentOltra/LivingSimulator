@@ -1,8 +1,9 @@
 # Living Simulator — Architecture
 
-> Status: **draft for review** (Phase 0). Nothing here is implemented yet.
-> Sections marked **⚠ Decision** describe places where this document deviates from,
-> or adds to, the original brief and need explicit approval.
+> Status: **approved**; Phase 1 implemented. Sections marked **⚠ Decision** were
+> additions to the original brief, approved before coding started. The section
+> "Implementation notes (Phase 1)" at the end lists where the code differs from or
+> refines this design.
 
 Living Simulator is a small-scale life simulation of a modern city of ~10,000
 inhabitants, rendered in the browser in a low-poly/voxel style. Inhabitants live on
@@ -117,7 +118,8 @@ Region
 * **A region is the unit of simulation, parallelism, persistence and download.**
   Regions never read each other's state. They only exchange **messages** (§5).
 * Chunks (64×64 tiles, 1 tile ≈ 8 m) are the unit of *rendering* and spatial indexing.
-  The initial city is a 512×512-tile region (≈ 4 km × 4 km) split into 8×8 chunks.
+  The initial city is 21×21 blocks of 12×12 tiles plus streets (290×290 tiles, about
+  2.3 km across). The village is 7×7 blocks.
 
 ### 3.2 Entity storage (structure of arrays)
 
@@ -667,3 +669,35 @@ changing code.
    control and WASM size.
 4. Free-flow traffic (no congestion) in the MVP.
 5. Fictional calendar starting at Year 1.
+
+---
+
+## 16. Implementation notes (Phase 1)
+
+- **Routing.** Each region's road graph is small (hundreds of intersections). Instead of
+  A* per trip, `RouteCache` lazily runs one Dijkstra per *source* node and keeps the full
+  distance table. Every later query from that node is O(1), and paths are rebuilt
+  deterministically (ties go to the lowest node id). This is still derived data: it is
+  never serialized and is invalidated by `roads.version`. Bigger regions in later phases
+  will add HPA*-style clusters.
+- **`sim_version`** is a blake3 hash of the core and content sources plus the compiled
+  `/data` blob. It is computed by `livingsim-core/build.rs`. It does not use the git
+  commit, so documentation commits do not rebase the world.
+- **Measured memory:** 300 B per agent, of which 193 B is the journal.
+- **Compression:** pure-Rust `ruzstd` (fastest level). A 10k-inhabitant region
+  checkpoint is about 1.5 MB.
+- **Checkpoints** happen every 1,440 ticks (one simulated day = one real hour) and are
+  taken *before* the exchange at that tick. Pending messages travel in each region's
+  outbox, so a world is fully described by its region checkpoints
+  (`World::from_regions`).
+- **Worker → main thread:** each tick the worker sends the full packed agent array
+  (7 × u32 per agent, about 300 KB) plus routes it has not sent before. Diffs are a later
+  optimisation.
+- **Visitors between regions:** a `Traveller` message spawns a temporary visitor in the
+  destination. The home region keeps the agent `ACT_AWAY` until a return tick it can
+  compute on its own. A `VisitReport` message settles the money spent.
+- **Food:** shops restock to 70 % every morning. Farms ship produce at 18:00 to local
+  shops first, and the surplus goes to the neighbouring town as `Trade` messages.
+- **Measured performance:** 10k agents run a simulated day in about 0.2 s natively and
+  about 0.3 s in WASM (catch-up). 1M agents take about 6 s on 4 threads. There are about
+  16 events per agent per day.

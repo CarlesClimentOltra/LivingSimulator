@@ -1,0 +1,722 @@
+//! Validation and compilation of [`RawContent`] into [`Content`].
+
+use crate::raw::{self, RawContent};
+use crate::*;
+use std::fmt;
+
+/// All problems found in the content, with a human-readable location.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentError {
+    pub problems: Vec<String>,
+}
+
+impl fmt::Display for ContentError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "{} problem(s) found in /data:", self.problems.len())?;
+        for p in &self.problems {
+            writeln!(f, "  - {p}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ContentError {}
+
+struct Ctx {
+    problems: Vec<String>,
+}
+
+impl Ctx {
+    fn err(&mut self, msg: impl Into<String>) {
+        self.problems.push(msg.into());
+    }
+}
+
+/// Parses "HH:MM" into minutes since midnight.
+pub fn parse_time(s: &str) -> Option<u16> {
+    let (h, m) = s.trim().split_once(':')?;
+    let h: u16 = h.parse().ok()?;
+    let m: u16 = m.parse().ok()?;
+    if h > 24 || m > 59 || (h == 24 && m != 0) {
+        return None;
+    }
+    Some((h * 60 + m) % 1440)
+}
+
+/// Parses "HH:MM-HH:MM".
+pub fn parse_span(s: &str) -> Option<DaySpan> {
+    let (a, b) = s.split_once('-')?;
+    Some(DaySpan {
+        start: parse_time(a)?,
+        end: parse_time(b)?,
+    })
+}
+
+const DAY_NAMES: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+/// Parses "Mon-Fri", "Sat-Sun", "daily", "weekdays", "weekend", "Mon,Wed,Fri".
+pub fn parse_days(s: &str) -> Option<DayMask> {
+    let s = s.trim().to_ascii_lowercase();
+    match s.as_str() {
+        "daily" => return Some(DayMask(0x7f)),
+        "weekdays" => return Some(DayMask(0x1f)),
+        "weekend" => return Some(DayMask(0x60)),
+        _ => {}
+    }
+    let mut mask = 0u8;
+    for part in s.split(',') {
+        let part = part.trim();
+        let idx = |d: &str| DAY_NAMES.iter().position(|n| *n == d.trim());
+        if let Some((a, b)) = part.split_once('-') {
+            let (a, b) = (idx(a)?, idx(b)?);
+            if a > b {
+                return None;
+            }
+            for d in a..=b {
+                mask |= 1 << d;
+            }
+        } else {
+            mask |= 1 << idx(part)?;
+        }
+    }
+    Some(DayMask(mask))
+}
+
+fn parse_color(s: &str) -> Option<u32> {
+    let hex = s.strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    u32::from_str_radix(hex, 16).ok()
+}
+
+fn check_unique<'a>(ctx: &mut Ctx, what: &str, ids: impl Iterator<Item = &'a str>) {
+    let mut seen = std::collections::BTreeSet::new();
+    for id in ids {
+        if !seen.insert(id) {
+            ctx.err(format!("duplicate {what} id `{id}`"));
+        }
+        if id.is_empty()
+            || !id
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            ctx.err(format!("{what} id `{id}` must be snake_case ascii"));
+        }
+    }
+}
+
+fn find(ids: &[&str], id: &str) -> Option<u16> {
+    ids.iter().position(|x| *x == id).map(|i| i as u16)
+}
+
+fn syllables(ctx: &mut Ctx, where_: &str, s: &raw::SyllableSet) -> SyllableSet {
+    if s.first.is_empty() || s.last.is_empty() {
+        ctx.err(format!(
+            "{where_}: `first` and `last` syllables must not be empty"
+        ));
+    }
+    let (min, max) = s.syllables;
+    if min < 2 || max < min {
+        ctx.err(format!("{where_}: syllables must be (min>=2, max>=min)"));
+    }
+    if max > 2 && s.middle.is_empty() {
+        ctx.err(format!(
+            "{where_}: more than 2 syllables needs `middle` syllables"
+        ));
+    }
+    SyllableSet {
+        first: s.first.clone(),
+        middle: s.middle.clone(),
+        last: s.last.clone(),
+        min_syllables: min,
+        max_syllables: max,
+    }
+}
+
+/// Validates and compiles raw content. All problems are reported at once.
+pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
+    let mut ctx = Ctx { problems: vec![] };
+
+    // ---- needs
+    let mut needs = Vec::new();
+    for need in Need::ALL {
+        match raw.needs.iter().find(|n| n.need == need.id()) {
+            Some(n) => needs.push(NeedDef {
+                need,
+                name: n.name.clone(),
+                decay_per_hour: n.decay_per_hour,
+                critical: n.critical.min(10_000),
+                weight: n.weight,
+            }),
+            None => ctx.err(format!("needs.ron: missing need `{}`", need.id())),
+        }
+    }
+    for n in &raw.needs {
+        if !Need::ALL.iter().any(|x| x.id() == n.need) {
+            ctx.err(format!("needs.ron: unknown need `{}` (the engine knows: hunger, energy, hygiene, fun, social, money, safety)", n.need));
+        }
+    }
+
+    // ---- tags (collected from buildings; activities must reference existing ones)
+    let mut tags: Vec<String> = Vec::new();
+    for b in &raw.buildings {
+        for t in &b.tags {
+            if !tags.contains(t) {
+                tags.push(t.clone());
+            }
+        }
+    }
+    tags.sort();
+
+    // ---- schedules
+    check_unique(
+        &mut ctx,
+        "schedule",
+        raw.schedules.iter().map(|s| s.id.as_str()),
+    );
+    let schedule_ids: Vec<&str> = raw.schedules.iter().map(|s| s.id.as_str()).collect();
+    let mut schedules = Vec::new();
+    for s in &raw.schedules {
+        let mut blocks = Vec::new();
+        for b in &s.blocks {
+            let days = parse_days(&b.days);
+            let span = parse_span(&b.time);
+            match (days, span) {
+                (Some(days), Some(span)) if !span.is_empty() => {
+                    blocks.push(ScheduleBlock { days, span })
+                }
+                _ => ctx.err(format!(
+                    "schedules.ron `{}`: invalid block days=`{}` time=`{}`",
+                    s.id, b.days, b.time
+                )),
+            }
+        }
+        let sleep = parse_span(&s.sleep).unwrap_or_else(|| {
+            ctx.err(format!(
+                "schedules.ron `{}`: invalid sleep `{}`",
+                s.id, s.sleep
+            ));
+            DaySpan::default()
+        });
+        let sleep_free_day = parse_span(&s.sleep_free_day).unwrap_or_else(|| {
+            ctx.err(format!(
+                "schedules.ron `{}`: invalid sleep_free_day `{}`",
+                s.id, s.sleep_free_day
+            ));
+            DaySpan::default()
+        });
+        schedules.push(ScheduleDef {
+            id: s.id.clone(),
+            name: s.name.clone(),
+            blocks,
+            sleep,
+            sleep_free_day,
+        });
+    }
+    for required in [
+        "toddler",
+        "child_school",
+        "retired",
+        "unemployed",
+        "student_university",
+    ] {
+        if !schedule_ids.contains(&required) {
+            ctx.err(format!(
+                "schedules.ron: the engine requires a schedule `{required}`"
+            ));
+        }
+    }
+
+    // ---- professions
+    check_unique(
+        &mut ctx,
+        "profession",
+        raw.professions.iter().map(|p| p.id.as_str()),
+    );
+    let profession_ids: Vec<&str> = raw.professions.iter().map(|p| p.id.as_str()).collect();
+    let mut professions = Vec::new();
+    for p in &raw.professions {
+        let mut sch = Vec::new();
+        for s in &p.schedules {
+            match find(&schedule_ids, s) {
+                Some(i) => sch.push(i),
+                None => ctx.err(format!(
+                    "professions.ron `{}`: unknown schedule `{s}`",
+                    p.id
+                )),
+            }
+        }
+        if sch.is_empty() {
+            ctx.err(format!(
+                "professions.ron `{}`: needs at least one schedule",
+                p.id
+            ));
+        }
+        professions.push(ProfessionDef {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            wage_per_shift_cents: p.wage_per_shift_cents,
+            schedules: sch,
+            min_age: p.min_age,
+        });
+    }
+
+    // ---- buildings
+    check_unique(
+        &mut ctx,
+        "building",
+        raw.buildings.iter().map(|b| b.id.as_str()),
+    );
+    let building_ids: Vec<&str> = raw.buildings.iter().map(|b| b.id.as_str()).collect();
+    let mut buildings = Vec::new();
+    for b in &raw.buildings {
+        let (lw, ld) = match b.lot {
+            LotSize::Small => (4, 6),
+            LotSize::Medium => (6, 6),
+            LotSize::Large => (12, 12),
+        };
+        if b.size.0 == 0 || b.size.1 == 0 || b.size.0 > lw || b.size.1 > ld {
+            ctx.err(format!(
+                "buildings.ron `{}`: size {:?} does not fit a {:?} lot ({lw}x{ld})",
+                b.id, b.size, b.lot
+            ));
+        }
+        let mut jobs = Vec::new();
+        for (prof, count) in &b.jobs {
+            match find(&profession_ids, prof) {
+                Some(i) => jobs.push(JobSlots {
+                    profession: i,
+                    count: *count,
+                }),
+                None => ctx.err(format!(
+                    "buildings.ron `{}`: unknown profession `{prof}`",
+                    b.id
+                )),
+            }
+        }
+        let open = match &b.open {
+            None => None,
+            Some(s) => match parse_span(s) {
+                Some(sp) => Some(sp),
+                None => {
+                    ctx.err(format!("buildings.ron `{}`: invalid open `{s}`", b.id));
+                    None
+                }
+            },
+        };
+        let open_days = parse_days(&b.open_days).unwrap_or_else(|| {
+            ctx.err(format!(
+                "buildings.ron `{}`: invalid open_days `{}`",
+                b.id, b.open_days
+            ));
+            DayMask(0x7f)
+        });
+        let color = parse_color(&b.color).unwrap_or_else(|| {
+            ctx.err(format!(
+                "buildings.ron `{}`: invalid color `{}`",
+                b.id, b.color
+            ));
+            0
+        });
+        let roof_color = parse_color(&b.roof_color).unwrap_or_else(|| {
+            ctx.err(format!(
+                "buildings.ron `{}`: invalid roof_color `{}`",
+                b.id, b.roof_color
+            ));
+            0
+        });
+        let btags = b
+            .tags
+            .iter()
+            .map(|t| tags.iter().position(|x| x == t).unwrap() as u16)
+            .collect();
+        buildings.push(BuildingDef {
+            id: b.id.clone(),
+            name: b.name.clone(),
+            lot: b.lot,
+            width: b.size.0,
+            depth: b.size.1,
+            floors: b.floors.max(1),
+            dwellings: b.dwellings,
+            jobs,
+            tags: btags,
+            zones: b.zones.iter().map(|(z, w)| (*z, *w)).collect(),
+            open,
+            open_days,
+            students: b.students,
+            stock: b.stock,
+            capacity: b.capacity,
+            name_patterns: b.name_patterns.clone(),
+            color,
+            roof_color,
+            roof: b.roof,
+        });
+    }
+
+    // ---- activities
+    check_unique(
+        &mut ctx,
+        "activity",
+        raw.activities.iter().map(|a| a.id.as_str()),
+    );
+    let mut activities = Vec::new();
+    for a in &raw.activities {
+        let mut effects = [0i32; NEED_COUNT];
+        for (need, v) in &a.effects {
+            match Need::ALL.iter().position(|n| n.id() == need) {
+                Some(i) => effects[i] = *v,
+                None => ctx.err(format!("activities.ron `{}`: unknown need `{need}`", a.id)),
+            }
+        }
+        let place = match &a.place {
+            raw::Place::Home => Place::Home,
+            raw::Place::Workplace => Place::Workplace,
+            raw::Place::OtherRegion => Place::OtherRegion,
+            raw::Place::Tag(t) => match tags.iter().position(|x| x == t) {
+                Some(i) => Place::Tag(i as u16),
+                None => {
+                    ctx.err(format!(
+                        "activities.ron `{}`: no building has tag `{t}`",
+                        a.id
+                    ));
+                    Place::Home
+                }
+            },
+        };
+        if a.minutes.0 == 0 || a.minutes.1 < a.minutes.0 {
+            ctx.err(format!(
+                "activities.ron `{}`: minutes must be (min>0, max>=min)",
+                a.id
+            ));
+        }
+        if a.ages.1 < a.ages.0 {
+            ctx.err(format!(
+                "activities.ron `{}`: ages must be (min, max>=min)",
+                a.id
+            ));
+        }
+        activities.push(ActivityDef {
+            id: a.id.clone(),
+            name: a.name.clone(),
+            kind: a.kind,
+            place,
+            effects,
+            min_minutes: a.minutes.0,
+            max_minutes: a.minutes.1,
+            cost_cents: a.cost_cents,
+            bias: a.bias,
+            min_age: a.ages.0,
+            max_age: a.ages.1,
+            doing: a.doing.clone(),
+        });
+    }
+    for kind in [
+        ActivityKind::Sleep,
+        ActivityKind::Work,
+        ActivityKind::School,
+        ActivityKind::Relax,
+    ] {
+        if !activities.iter().any(|a| a.kind == kind) {
+            ctx.err(format!(
+                "activities.ron: the engine requires at least one activity of kind {kind:?}"
+            ));
+        }
+    }
+
+    // ---- names
+    check_unique(
+        &mut ctx,
+        "name style",
+        raw.name_styles.iter().map(|s| s.id.as_str()),
+    );
+    let mut styles = Vec::new();
+    for s in &raw.name_styles {
+        styles.push(NameStyle {
+            id: s.id.clone(),
+            female: syllables(&mut ctx, &format!("names `{}` female", s.id), &s.female),
+            male: syllables(&mut ctx, &format!("names `{}` male", s.id), &s.male),
+            family: syllables(&mut ctx, &format!("names `{}` family", s.id), &s.family),
+            places: syllables(&mut ctx, &format!("names `{}` places", s.id), &s.places),
+        });
+    }
+    if styles.is_empty() {
+        ctx.err("names/: at least one name style is required");
+    }
+    let style_ids: Vec<&str> = raw.name_styles.iter().map(|s| s.id.as_str()).collect();
+    let names = match &raw.names_common {
+        Some(c) => NamesDef {
+            styles,
+            blacklist: c.blacklist.iter().map(|s| s.to_lowercase()).collect(),
+            street_suffixes: c.street_suffixes.clone(),
+            avenue_suffixes: c.avenue_suffixes.clone(),
+        },
+        None => {
+            ctx.err("names/common.ron is missing");
+            NamesDef {
+                styles,
+                blacklist: vec![],
+                street_suffixes: vec![],
+                avenue_suffixes: vec![],
+            }
+        }
+    };
+    if names.street_suffixes.is_empty() || names.avenue_suffixes.is_empty() {
+        ctx.err("names/common.ron: street_suffixes and avenue_suffixes must not be empty");
+    }
+
+    // ---- text
+    let text = match &raw.text {
+        Some(t) => {
+            let mut journal = Vec::new();
+            for k in JournalKind::ALL {
+                match t.journal.get(k.id()) {
+                    Some(s) => journal.push(s.clone()),
+                    None => {
+                        ctx.err(format!(
+                            "journal.ron: missing journal template `{}`",
+                            k.id()
+                        ));
+                        journal.push(String::new());
+                    }
+                }
+            }
+            let mut news = Vec::new();
+            for k in NewsKind::ALL {
+                match t.news.get(k.id()) {
+                    Some(s) => news.push(s.clone()),
+                    None => {
+                        ctx.err(format!("journal.ron: missing news template `{}`", k.id()));
+                        news.push((String::new(), String::new()));
+                    }
+                }
+            }
+            for k in t.journal.keys() {
+                if !JournalKind::ALL.iter().any(|j| j.id() == k) {
+                    ctx.err(format!("journal.ron: unknown journal kind `{k}`"));
+                }
+            }
+            TextDef { journal, news }
+        }
+        None => {
+            ctx.err("journal.ron is missing");
+            TextDef {
+                journal: vec![],
+                news: vec![],
+            }
+        }
+    };
+
+    // ---- economy
+    let economy = match &raw.economy {
+        Some(e) => EconomyDef {
+            pension_per_day_cents: e.pension_per_day_cents,
+            benefit_per_day_cents: e.benefit_per_day_cents,
+            meal_price_cents: e.meal_price_cents,
+            meals_per_person_bought: e.meals_per_person_bought,
+            farm_food_per_day: e.farm_food_per_day,
+            starting_money_min_cents: e.starting_money_cents.0,
+            starting_money_max_cents: e.starting_money_cents.1.max(e.starting_money_cents.0),
+        },
+        None => {
+            ctx.err("economy.ron is missing");
+            EconomyDef {
+                pension_per_day_cents: 0,
+                benefit_per_day_cents: 0,
+                meal_price_cents: 0,
+                meals_per_person_bought: 0,
+                farm_food_per_day: 0,
+                starting_money_min_cents: 0,
+                starting_money_max_cents: 0,
+            }
+        }
+    };
+
+    // ---- world
+    let world = match &raw.world {
+        Some(w) => {
+            check_unique(
+                &mut ctx,
+                "region template",
+                w.templates.iter().map(|t| t.id.as_str()),
+            );
+            let mut templates = Vec::new();
+            for t in &w.templates {
+                let mut required = Vec::new();
+                for (b, n) in &t.required {
+                    match find(&building_ids, b) {
+                        Some(i) => required.push((i, *n)),
+                        None => ctx.err(format!(
+                            "world.ron template `{}`: unknown building `{b}`",
+                            t.id
+                        )),
+                    }
+                }
+                if t.blocks < 2 || t.blocks > 64 {
+                    ctx.err(format!(
+                        "world.ron template `{}`: blocks must be in 2..=64",
+                        t.id
+                    ));
+                }
+                if t.rings.is_empty() {
+                    ctx.err(format!(
+                        "world.ron template `{}`: rings must not be empty",
+                        t.id
+                    ));
+                }
+                templates.push(RegionTemplate {
+                    id: t.id.clone(),
+                    blocks: t.blocks,
+                    target_population: t.target_population,
+                    rings: t.rings.clone(),
+                    park_permille: t.park_permille,
+                    has_river: t.has_river,
+                    required,
+                });
+            }
+            let template_ids: Vec<&str> = w.templates.iter().map(|t| t.id.as_str()).collect();
+            let mut initial = Vec::new();
+            for (t, s) in &w.initial_regions {
+                match (find(&template_ids, t), find(&style_ids, s)) {
+                    (Some(t), Some(s)) => initial.push((t, s)),
+                    _ => ctx.err(format!(
+                        "world.ron: unknown template/style in initial region ({t}, {s})"
+                    )),
+                }
+            }
+            if initial.is_empty() {
+                ctx.err("world.ron: at least one initial region is required");
+            }
+            WorldDef {
+                initial_regions: initial,
+                highway_tiles: w.highway_tiles,
+                templates,
+            }
+        }
+        None => {
+            ctx.err("world.ron is missing");
+            WorldDef {
+                initial_regions: vec![],
+                highway_tiles: 0,
+                templates: vec![],
+            }
+        }
+    };
+
+    // ---- later phases
+    check_unique(&mut ctx, "good", raw.goods.iter().map(|g| g.id.as_str()));
+    let goods = raw
+        .goods
+        .iter()
+        .map(|g| GoodDef {
+            id: g.id.clone(),
+            name: g.name.clone(),
+            base_price_cents: g.base_price_cents,
+        })
+        .collect();
+    check_unique(&mut ctx, "crime", raw.crimes.iter().map(|c| c.id.as_str()));
+    let crimes = raw
+        .crimes
+        .iter()
+        .map(|c| {
+            if c.sentence_days.1 < c.sentence_days.0 {
+                ctx.err(format!(
+                    "crimes.ron `{}`: sentence_days must be (min, max>=min)",
+                    c.id
+                ));
+            }
+            CrimeDef {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                severity: c.severity.clamp(1, 10),
+                min_sentence_days: c.sentence_days.0,
+                max_sentence_days: c.sentence_days.1,
+                base_permille: c.base_permille,
+            }
+        })
+        .collect();
+    check_unique(
+        &mut ctx,
+        "technology",
+        raw.technologies.iter().map(|t| t.id.as_str()),
+    );
+    let tech_ids: Vec<&str> = raw.technologies.iter().map(|t| t.id.as_str()).collect();
+    let technologies = raw
+        .technologies
+        .iter()
+        .map(|t| TechDef {
+            id: t.id.clone(),
+            name: t.name.clone(),
+            cost_points: t.cost_points,
+            requires: t
+                .requires
+                .iter()
+                .filter_map(|r| {
+                    let i = find(&tech_ids, r);
+                    if i.is_none() {
+                        ctx.err(format!(
+                            "technologies.ron `{}`: unknown requirement `{r}`",
+                            t.id
+                        ));
+                    }
+                    i
+                })
+                .collect(),
+            unlocks: t
+                .unlocks
+                .iter()
+                .filter_map(|b| {
+                    let i = find(&building_ids, b);
+                    if i.is_none() {
+                        ctx.err(format!(
+                            "technologies.ron `{}`: unknown building `{b}`",
+                            t.id
+                        ));
+                    }
+                    i
+                })
+                .collect(),
+        })
+        .collect();
+
+    if ctx.problems.is_empty() {
+        Ok(Content {
+            needs,
+            activities,
+            schedules,
+            professions,
+            buildings,
+            tags,
+            names,
+            text,
+            economy,
+            world,
+            goods,
+            crimes,
+            technologies,
+        })
+    } else {
+        Err(ContentError {
+            problems: ctx.problems,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_times_and_days() {
+        assert_eq!(parse_time("09:30"), Some(570));
+        assert_eq!(parse_time("24:00"), Some(0));
+        assert_eq!(parse_time("25:00"), None);
+        let s = parse_span("22:00-06:00").unwrap();
+        assert!(s.crosses_midnight());
+        assert_eq!(s.len(), 480);
+        assert_eq!(parse_days("Mon-Fri"), Some(DayMask(0x1f)));
+        assert_eq!(parse_days("Sat-Sun"), Some(DayMask(0x60)));
+        assert_eq!(parse_days("mon,wed"), Some(DayMask(0b101)));
+        assert_eq!(parse_days("Fri-Mon"), None);
+    }
+}

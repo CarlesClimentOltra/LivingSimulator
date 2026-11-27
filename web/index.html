@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="description" content="Living Simulator: a shared, always-running low-poly city of 10,000 inhabitants who live on their own. You can only watch." />
+    <meta name="theme-color" content="#0e1a33" />
+    <title>Living Simulator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='7' width='6' height='8' fill='%2364b5f6'/%3E%3Crect x='8' y='3' width='7' height='12' fill='%23ffca28'/%3E%3Crect x='0' y='15' width='16' height='1' fill='%237cb342'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="view"></div>
+    <header id="topbar">
+      <div class="brand"><span class="logo">▦</span> Living Simulator</div>
+      <div id="clock"><span id="time">--:--</span><span id="date">Loading…</span></div>
+      <nav id="regions"></nav>
+    </header>
+    <aside id="side">
+      <button id="side-toggle" class="btn icon" aria-label="Toggle panel">☰</button>
+      <div id="tabs">
+        <button class="btn active" data-tab="stats">City</button>
+        <button class="btn" data-tab="news">Newspaper</button>
+      </div>
+      <div id="side-body"></div>
+    </aside>
+    <section id="card" class="hidden" aria-live="polite">
+      <button id="card-close" class="btn icon" aria-label="Close">✕</button>
+      <div id="card-body"></div>
+    </section>
+    <div id="notice" class="hidden"></div>
+    <footer id="hint">You can only watch · drag to move · scroll or pinch to zoom (zoom in to see inside) · click someone</footer>
+    <div id="loading">
+      <div class="load-box">
+        <h1>Living Simulator</h1>
+        <p class="muted">A city that lives on its own. Everyone sees the same moment.</p>
+        <div id="load-bar"><div></div></div>
+        <p id="load-label">Starting…</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
