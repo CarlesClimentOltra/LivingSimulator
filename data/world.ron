@@ -1,0 +1,30 @@
+// The initial world. Each region is a town or city simulated independently; regions
+// exchange messages once per simulated hour (see docs/ARCHITECTURE.md §5).
+(
+    initial_regions: [("city", "meridian"), ("village", "highland")],
+    highway_tiles: 1500,
+    templates: [
+        (
+            id: "city",
+            blocks: 21,
+            target_population: 10000,
+            // (max distance from the centre in blocks, zone)
+            rings: [(2, Downtown), (5, Mixed), (8, Residential), (99, Rural)],
+            park_permille: 60,
+            has_river: true,
+            required: {
+                "town_hall": 1, "police_station": 2, "jail": 1, "hospital": 1, "fire_station": 1,
+                "school": 3, "university": 1, "supermarket": 4, "cinema": 1, "office_tower": 2,
+                "construction_firm": 1, "park": 2,
+            },
+        ),
+        (
+            id: "village",
+            blocks: 7,
+            target_population: 500,
+            rings: [(1, Mixed), (2, Residential), (99, Rural)],
+            park_permille: 0,
+            required: {"village_school": 1, "corner_shop": 2, "farm": 4, "bar": 1, "cafe": 1},
+        ),
+    ],
+)

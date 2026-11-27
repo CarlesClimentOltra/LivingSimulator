@@ -1,0 +1,28 @@
+// "Highland" naming style: consonant-heavy invented names for rural towns.
+(
+    id: "highland",
+    female: (
+        first: ["Ais", "Bry", "Cel", "Dey", "Eil", "Fen", "Gwen", "Is", "Kel", "Lia", "Mor", "Nes", "Ry", "Sia", "Tam", "Wyn"],
+        middle: ["a", "e", "i", "o"],
+        last: ["ra", "wen", "na", "ly", "sha", "dra", "nis", "eth", "wyn", "la"],
+        syllables: (2, 3),
+    ),
+    male: (
+        first: ["Ald", "Bran", "Cor", "Dun", "Ew", "Fer", "Gor", "Hal", "Ior", "Kai", "Lach", "Mal", "Ner", "Ros", "Tor", "Wil"],
+        middle: ["a", "e", "i", "o"],
+        last: ["dan", "ric", "wyn", "mac", "an", "rin", "dor", "ach", "us", "ock"],
+        syllables: (2, 3),
+    ),
+    family: (
+        first: ["Ash", "Brack", "Carn", "Dun", "Eld", "Fal", "Glen", "Hark", "Kern", "Loch", "Mar", "Ness", "Ord", "Penn", "Rath", "Stone", "Thorn", "Wick"],
+        middle: ["a", "e", "i", "o"],
+        last: ["ley", "wood", "ford", "more", "dale", "wick", "ton", "burn", "holt", "by", "mere"],
+        syllables: (2, 2),
+    ),
+    places: (
+        first: ["Ash", "Brae", "Carn", "Dun", "Fell", "Glen", "Kil", "Loch", "Moor", "Pen", "Strath", "Tarn"],
+        middle: ["a", "e", "i"],
+        last: ["haven", "moor", "dale", "brook", "field", "ford", "holm", "stead"],
+        syllables: (2, 2),
+    ),
+)

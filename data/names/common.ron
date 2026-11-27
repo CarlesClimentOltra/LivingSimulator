@@ -1,0 +1,12 @@
+// Shared naming data. Names are always invented from syllables (style_*.ron files);
+// the blacklist removes accidental real or unfortunate words (lower case).
+(
+    blacklist: [
+        "elvis", "madonna", "einstein", "darwin", "newton", "lenin", "stalin", "hitler",
+        "obama", "trump", "putin", "biden", "messi", "pele", "shakira", "beyonce",
+        "nero", "judas", "satan", "lucifer", "kill", "dead", "porn", "nazi", "anal",
+        "cum", "fuk", "fuck", "shit", "puta", "merda", "caca", "pis", "tit", "ass",
+    ],
+    street_suffixes: ["Street", "Lane", "Road", "Way", "Walk", "Row"],
+    avenue_suffixes: ["Avenue", "Boulevard", "Parkway"],
+)

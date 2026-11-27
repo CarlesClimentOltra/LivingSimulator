@@ -1,0 +1,8 @@
+// Technology tree (Phase 7). The world starts with present-day technology.
+[
+    (id: "electric_buses", name: "Electric buses", cost_points: 50000),
+    (id: "solar_roofs", name: "Solar roofs", cost_points: 80000),
+    (id: "vertical_farms", name: "Vertical farms", cost_points: 150000, requires: ["solar_roofs"]),
+    (id: "smart_traffic", name: "Smart traffic lights", cost_points: 120000, requires: ["electric_buses"]),
+    (id: "maglev", name: "Maglev intercity rail", cost_points: 600000, requires: ["smart_traffic"]),
+]

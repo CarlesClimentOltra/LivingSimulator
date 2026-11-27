@@ -1,0 +1,8 @@
+// Offences (Phase 5). Represented without graphic content: icons, police tape, newspaper.
+[
+    (id: "shoplifting", name: "Shoplifting", severity: 1, sentence_days: (0, 5), base_permille: 20),
+    (id: "burglary", name: "Burglary", severity: 4, sentence_days: (60, 400), base_permille: 5),
+    (id: "assault", name: "Fight", severity: 5, sentence_days: (30, 300), base_permille: 4),
+    (id: "fraud", name: "Fraud", severity: 4, sentence_days: (90, 700), base_permille: 2),
+    (id: "homicide", name: "Homicide", severity: 10, sentence_days: (3650, 9000), base_permille: 1),
+]

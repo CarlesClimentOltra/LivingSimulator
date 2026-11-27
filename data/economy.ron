@@ -1,0 +1,11 @@
+// Phase 1 economy parameters (expanded in Phase 2: firms, prices, rents, taxes).
+(
+    pension_per_day_cents: 4500,
+    benefit_per_day_cents: 2200,
+    meal_price_cents: 450,
+    // Meals per household member bought on each grocery trip.
+    meals_per_person_bought: 6,
+    // Food produced per farm per day, shipped to shops (in meals).
+    farm_food_per_day: 400,
+    starting_money_cents: (20000, 600000),
+)

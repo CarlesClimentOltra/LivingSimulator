@@ -1,0 +1,41 @@
+// Daily agendas. `blocks` are obligations (work, school). `sleep` is the preferred
+// sleeping span on days with obligations, `sleep_free_day` on the others.
+// days: "daily", "weekdays", "weekend", "Mon-Fri", "Mon,Wed,Fri"…
+[
+    // Required by the engine:
+    (id: "toddler", name: "Toddler", sleep: "20:30-07:30", sleep_free_day: "20:30-08:00"),
+    (id: "child_school", name: "School child",
+     blocks: [(days: "weekdays", time: "08:30-14:30")],
+     sleep: "21:30-07:30", sleep_free_day: "22:00-08:30"),
+    (id: "student_university", name: "University student",
+     blocks: [(days: "weekdays", time: "10:00-16:00")],
+     sleep: "00:30-08:30", sleep_free_day: "01:30-10:00"),
+    (id: "retired", name: "Retired", sleep: "22:30-07:30", sleep_free_day: "22:30-07:30"),
+    (id: "unemployed", name: "Job seeker", sleep: "23:30-08:30", sleep_free_day: "23:30-09:00"),
+
+    // Work patterns:
+    (id: "office_day", name: "Office hours",
+     blocks: [(days: "weekdays", time: "09:00-17:00")],
+     sleep: "23:00-07:30", sleep_free_day: "00:00-09:00"),
+    (id: "retail", name: "Retail shift",
+     blocks: [(days: "Mon-Sat", time: "10:00-18:30")],
+     sleep: "23:30-08:00", sleep_free_day: "00:00-09:30"),
+    (id: "early_shift", name: "Early shift",
+     blocks: [(days: "weekdays", time: "06:00-14:00")],
+     sleep: "21:30-05:00", sleep_free_day: "23:00-08:00"),
+    (id: "late_shift", name: "Late shift",
+     blocks: [(days: "weekdays", time: "14:00-22:00")],
+     sleep: "00:00-08:30", sleep_free_day: "00:30-09:00"),
+    (id: "weekend_late", name: "Weekend late shift",
+     blocks: [(days: "Wed-Sun", time: "16:00-23:30")],
+     sleep: "01:00-09:30", sleep_free_day: "00:30-09:00"),
+    (id: "night_shift", name: "Night shift",
+     blocks: [(days: "Mon-Fri", time: "22:00-06:00")],
+     sleep: "07:30-14:30", sleep_free_day: "00:00-08:30"),
+    (id: "teacher_day", name: "School day",
+     blocks: [(days: "weekdays", time: "08:00-15:30")],
+     sleep: "22:30-06:45", sleep_free_day: "23:30-08:30"),
+    (id: "farm_day", name: "Farm day",
+     blocks: [(days: "Mon-Sat", time: "06:30-14:30")],
+     sleep: "21:30-05:45", sleep_free_day: "22:30-07:00"),
+]

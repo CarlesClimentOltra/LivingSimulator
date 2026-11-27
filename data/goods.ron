@@ -1,0 +1,6 @@
+// Goods traded and stocked by firms. Used from Phase 2 (economy); Phase 1 only uses "food".
+[
+    (id: "food", name: "Food", base_price_cents: 450),
+    (id: "consumer_goods", name: "Consumer goods", base_price_cents: 2500),
+    (id: "building_materials", name: "Building materials", base_price_cents: 12000),
+]

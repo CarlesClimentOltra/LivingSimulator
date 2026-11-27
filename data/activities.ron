@@ -1,0 +1,68 @@
+// Activities inhabitants can choose. `effects` are per simulated hour and are added to the
+// need's base decay (see needs.ron). `place` is Home, Workplace, OtherRegion or Tag("…"),
+// where the tag refers to building tags in buildings.ron.
+[
+    (id: "sleep", name: "Sleep", kind: Sleep, place: Home,
+     effects: {"energy": 1820, "hunger": 420, "hygiene": 150, "fun": 380, "social": 280},
+     minutes: (360, 600), doing: "sleeping"),
+
+    (id: "work", name: "Work", kind: Work, place: Workplace,
+     effects: {"hunger": 300, "energy": -80, "fun": -100, "social": 380},
+     minutes: (60, 720), doing: "working"),
+
+    (id: "school", name: "School", kind: School, place: Workplace,
+     effects: {"hunger": 300, "fun": 200, "social": 600},
+     minutes: (60, 480), doing: "at class"),
+
+    (id: "breakfast", name: "Eat at home", kind: EatHome, place: Home,
+     effects: {"hunger": 15000, "social": 300},
+     minutes: (20, 40), doing: "eating"),
+
+    (id: "shower", name: "Shower", kind: Hygiene, place: Home,
+     effects: {"hygiene": 28000, "fun": 300},
+     minutes: (15, 25), doing: "showering"),
+
+    (id: "watch_tv", name: "Watch TV", kind: Relax, place: Home,
+     effects: {"fun": 1600, "energy": 200},
+     minutes: (45, 150), bias: 150, doing: "watching TV"),
+
+    (id: "read_book", name: "Read a book", kind: Relax, place: Home,
+     effects: {"fun": 1100, "energy": 250},
+     minutes: (30, 90), ages: (8, 255), doing: "reading"),
+
+    (id: "play_at_home", name: "Play", kind: Relax, place: Home,
+     effects: {"fun": 2200, "energy": -200},
+     minutes: (30, 120), ages: (0, 12), bias: 300, doing: "playing"),
+
+    (id: "groceries", name: "Buy groceries", kind: Shop, place: Tag("grocery"),
+     effects: {"social": 300},
+     minutes: (15, 40), ages: (16, 255), doing: "shopping"),
+
+    (id: "eat_out", name: "Eat out", kind: EatOut, place: Tag("restaurant"),
+     effects: {"hunger": 11000, "social": 1800, "fun": 900},
+     minutes: (40, 90), cost_cents: 1500, ages: (14, 255), doing: "having a meal"),
+
+    (id: "coffee", name: "Have a coffee", kind: EatOut, place: Tag("cafe"),
+     effects: {"hunger": 3000, "social": 1800, "fun": 700, "energy": 400},
+     minutes: (20, 50), cost_cents: 350, ages: (14, 255), doing: "having a coffee"),
+
+    (id: "park_walk", name: "Walk in the park", kind: Leisure, place: Tag("park"),
+     effects: {"fun": 1500, "social": 700, "energy": -150},
+     minutes: (30, 90), bias: 100, doing: "walking in the park"),
+
+    (id: "drinks", name: "Drinks at a bar", kind: Leisure, place: Tag("bar"),
+     effects: {"fun": 2300, "social": 2600, "energy": -200},
+     minutes: (60, 180), cost_cents: 1200, ages: (18, 255), doing: "having drinks"),
+
+    (id: "cinema", name: "Go to the cinema", kind: Leisure, place: Tag("cinema"),
+     effects: {"fun": 3200, "social": 900},
+     minutes: (100, 150), cost_cents: 900, ages: (6, 255), doing: "watching a film"),
+
+    (id: "gym", name: "Work out", kind: Leisure, place: Tag("gym"),
+     effects: {"fun": 1200, "social": 600, "energy": -600, "hygiene": -800},
+     minutes: (45, 90), cost_cents: 300, ages: (14, 80), doing: "working out"),
+
+    (id: "visit_city", name: "Visit the city", kind: VisitRegion, place: OtherRegion,
+     effects: {"fun": 1800, "social": 1200},
+     minutes: (180, 300), bias: -400, ages: (16, 85), doing: "visiting another town"),
+]
