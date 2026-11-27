@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795804897362,
+  "lastUpdate": 1795813568673,
   "repoUrl": "https://github.com/CarlesClimentOltra/LivingSimulator",
   "entries": {
     "Living Simulator": [
@@ -83,6 +83,95 @@ window.BENCHMARK_DATA = {
           {
             "name": "WASM catch-up, 1 day, region 0 (10000 agents)",
             "value": 386,
+            "unit": "ms"
+          },
+          {
+            "name": "WASM catch-up, 1 day, region 1 (500 agents)",
+            "value": 5,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "98279159+CarlesClimentOltra@users.noreply.github.com",
+            "name": "CarlesClimentOltra",
+            "username": "CarlesClimentOltra"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "49c587205591760320d79eaafbc780f8cb55c9e3",
+          "message": "Merge pull request #6 from CarlesClimentOltra/claude/friendly-davinci-32gdj1\n\nFix: stable content references in snapshots (resets the live world) + commuting messages",
+          "timestamp": "2026-11-27T22:04:09+01:00",
+          "tree_id": "054687beeecd5bbe4e0b0ac585fe69f5e6e9fd98",
+          "url": "https://github.com/CarlesClimentOltra/LivingSimulator/commit/49c587205591760320d79eaafbc780f8cb55c9e3"
+        },
+        "date": 1795813567940,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "1 simulated day, 10000 agents",
+            "value": 251.9,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 10000 agents",
+            "value": 169.8,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 10000 agents",
+            "value": 15.6,
+            "unit": "events"
+          },
+          {
+            "name": "region checkpoint size, 10k agents",
+            "value": 1644.9,
+            "unit": "KB"
+          },
+          {
+            "name": "1 simulated day, 100000 agents",
+            "value": 1298.8,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 100000 agents",
+            "value": 1322,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 100000 agents",
+            "value": 15.6,
+            "unit": "events"
+          },
+          {
+            "name": "1 simulated day, 1000000 agents",
+            "value": 12206.2,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 1000000 agents",
+            "value": 13503.5,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 1000000 agents",
+            "value": 15.6,
+            "unit": "events"
+          },
+          {
+            "name": "memory per agent (columns + journal)",
+            "value": 300,
+            "unit": "bytes"
+          },
+          {
+            "name": "WASM catch-up, 1 day, region 0 (10000 agents)",
+            "value": 379,
             "unit": "ms"
           },
           {
