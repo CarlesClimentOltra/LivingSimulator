@@ -729,3 +729,48 @@ changing code.
   path on deploy.
 - **Cost:** none measurable. The economy runs once a day per firm and at existing events.
   10k agents still simulate a day in about 0.2 s.
+
+## 18. Implementation notes (Phase 3: life cycle)
+
+- **State.** `systems/demography.rs` keeps per-agent columns (`education`, four `friends`,
+  `dflags` for married/adopted/orphan), plus sparse maps: dating since, pregnancies,
+  parental leave, illness, unemployed since, commuting jobs and commuting staff. This adds
+  about 18 bytes per agent.
+- **Daily (06:00, before the economy):**
+  1. health (recoveries, new illnesses);
+  2. deaths;
+  3. births;
+  4. stages of life on birthdays (daycare 1, school 6, school leaving 18 → university or
+     job seeking, degree, retirement);
+  5. friendships and couples (dating → moving in → marriage → divorce; pregnancy;
+     adoption);
+  6. leaving home and emigration;
+  7. immigration into free homes;
+  8. parental benefits;
+  9. news and history.
+
+  Commuting runs after the economy.
+- **Randomness** is the keyed hash of (agent, day, purpose), compared with an annual ‰ rate
+  as `hash % 365000 < rate`. Sexual orientation is a pure function of (seed, agent), so it
+  is not stored.
+- **Leaving the region** (`remove_person`) handles every reference to the person:
+  - inheritance, done with `transfer`;
+  - heirs for firms and rented-out homes;
+  - partner, parent and friend links;
+  - orphans;
+  - commuting jobs (`JobEnded` messages);
+  - maps;
+  - household size.
+
+  Then it frees the slot.
+- **Housing is fixed until Phase 4.** New households only use free dwellings: young adults
+  leaving home, separated partners, immigrants and families moving in. Couples without a
+  home keep living apart.
+- **Commuting.** Each morning a town offers vacancies it could not fill (`JobOffers`, using
+  the same staffing rule as local hiring). A job seeker in the neighbouring town accepts
+  (`JobAccept`). The employer pays wages per scheduled shift (`RemoteWage`), and either side
+  ends the job (`JobEnded`). The commuter drives to the highway exit and is "away" during
+  the shift.
+- **Format v3.** `snapshot_v1.rs` freezes the v1 and v2 layouts. Each one upgrades straight
+  to the current layout, and `bootstrap_demography` assigns education, daycare places,
+  ongoing pregnancies and first friendships deterministically.

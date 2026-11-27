@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–2 are implemented; Phase 3 is in progress.
+> Status: **approved**. Phases 0–3 are implemented.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
