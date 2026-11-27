@@ -45,7 +45,7 @@ jobs:
           cat bench.json
           ./scripts/check-bench-targets.sh bench.json
       - name: Create the bench-data branch on first run
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         run: |
           if ! git ls-remote --exit-code --heads origin bench-data >/dev/null; then
             git config user.name "github-actions[bot]"
@@ -62,9 +62,9 @@ jobs:
           output-file-path: bench.json
           gh-pages-branch: bench-data
           benchmark-data-dir-path: bench
-          auto-push: ${{ github.event_name == 'push' }}
-          # Pull requests only compare when history exists; they never write it.
-          skip-fetch-gh-pages: ${{ github.event_name != 'push' }}
+          auto-push: ${{ github.event_name != 'pull_request' }}
+          # Pull requests never write history, and do not need it to exist.
+          skip-fetch-gh-pages: ${{ github.event_name == 'pull_request' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: "125%"
           comment-on-alert: true
