@@ -1,0 +1,30 @@
+[package]
+name = "livingsim-core"
+description = "Deterministic, event-driven simulation core of Living Simulator (no I/O, no clock)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+build = "build.rs"
+
+[dependencies]
+livingsim-content.workspace = true
+serde.workspace = true
+bincode.workspace = true
+ruzstd.workspace = true
+blake3.workspace = true
+rand_chacha.workspace = true
+rand_core.workspace = true
+rayon = { workspace = true, optional = true }
+
+[build-dependencies]
+livingsim-content = { workspace = true, features = ["loader"] }
+bincode.workspace = true
+blake3.workspace = true
+
+[features]
+default = []
+# Step regions in parallel with rayon (native only). Results are identical either way.
+parallel = ["dep:rayon"]
+
+[dev-dependencies]
