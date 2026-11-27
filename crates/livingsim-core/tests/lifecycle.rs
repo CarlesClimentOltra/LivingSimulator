@@ -2,7 +2,6 @@
 
 use livingsim_core::agents::flags;
 use livingsim_core::roads::NONE;
-use livingsim_core::snapshot::{decode_region, region_hash};
 use livingsim_core::time::{age_years, TICKS_PER_DAY};
 use livingsim_core::World;
 
@@ -68,31 +67,6 @@ fn life_goes_on_and_money_is_conserved() {
             assert!(age_years(r.agents.birth[i], w.tick) < 130);
         }
     }
-}
-
-/// A Phase 2 (format v2) snapshot loads: people are kept and gain education.
-#[test]
-fn migrates_v2_snapshot() {
-    let bytes = include_bytes!("fixtures/region_v2_village.bin.zst");
-    assert_eq!(
-        livingsim_core::snapshot::read_header(bytes)
-            .unwrap()
-            .format_version,
-        2
-    );
-    let r = decode_region(bytes).expect("v2 migrates");
-    assert_eq!(r.population(), 501);
-    assert!(r.systems.demography.bootstrapped);
-    assert!(r.systems.economy.bootstrapped);
-    let educated = (0..r.agents.len() as u32)
-        .filter(|a| r.systems.demography.education_of(*a) > 0)
-        .count();
-    assert!(educated > 200);
-    assert_eq!(
-        region_hash(&r),
-        region_hash(&decode_region(bytes).unwrap()),
-        "deterministic migration"
-    );
 }
 
 #[test]

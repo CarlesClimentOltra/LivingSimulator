@@ -49,6 +49,12 @@ Names must always be invented. Never add real people's names, brands or real pla
 
 Changing data changes the simulation. Read "Updating the golden hash" below.
 
+You can add, remove or reorder entries freely. Snapshots store the *names* behind their
+content indices (`content_ids.rs`), and running worlds are translated by name when the
+new version is deployed. **Never rename an `id` that a running world uses.** Add a new
+entry instead. If an entry is removed, its references fall back to the first entry of the
+list.
+
 ### Economy rules (Phase 2)
 
 - Money is `i64` cents (US dollars). **Never** change a balance directly: use
@@ -110,8 +116,12 @@ the hash changes when you did not expect it to, you have found a bug.
 If you add or change serialized fields, follow these steps:
 
 1. Bump `snapshot::FORMAT_VERSION`.
-2. Freeze the old types in a `snapshot::vN` module and add a step to `migrate`.
+2. Freeze the previous layout in a `snapshot_vN.rs` module and add an upgrade step to
+   `migrate`.
 3. Add a small fixture of the old format under `crates/livingsim-core/tests/fixtures/`.
+
+Since format 4, content references survive any change to `/data` (see above). Formats 1–3
+predate this and are not migrated: the runner regenerates the world from its seed.
 
 ### Performance budget
 

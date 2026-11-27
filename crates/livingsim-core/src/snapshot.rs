@@ -17,7 +17,7 @@ use bincode::Options;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAGIC: &[u8; 4] = b"LSIM";
-pub const FORMAT_VERSION: u16 = 3;
+pub const FORMAT_VERSION: u16 = 4;
 pub const HEADER_LEN: usize = 4 + 2 + 32 + 1 + 2 + 4 + 32;
 
 #[repr(u8)]
@@ -170,31 +170,15 @@ fn decode(b: &[u8], kind: Kind) -> Result<(Header, Vec<u8>), SnapshotError> {
 /// When the layout changes: bump `FORMAT_VERSION`, copy the old types into a module
 /// `snapshot::vN` (frozen forever), and add a step `N => vN::to_next(payload)` here. Add a
 /// fixture of the old format under `tests/fixtures/` so CI proves the migration works.
-pub fn migrate(from: u16, kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
-    let mut v = from;
-    let mut p = payload;
-    if v == 0 || v > FORMAT_VERSION {
+pub fn migrate(from: u16, _kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
+    // Formats 1–3 stored content indices without their names, and migrations between them
+    // shifted those indices when `/data` gained entries. They cannot be trusted, so they are
+    // not migrated: the runner regenerates the world from its seed instead.
+    // Future layout changes add frozen types and an upgrade step here.
+    if from != FORMAT_VERSION {
         return Err(SnapshotError::UnsupportedFormat(from));
     }
-    // Each frozen layout upgrades straight to the current one.
-    if v < FORMAT_VERSION {
-        p = match (v, kind) {
-            (1, Kind::Region) => {
-                to_bytes(&from_bytes::<crate::snapshot_v1::RegionV1>(&p)?.upgrade())
-            }
-            (1, Kind::World) => to_bytes(&from_bytes::<crate::snapshot_v1::WorldV1>(&p)?.upgrade()),
-            (2, Kind::Region) => {
-                to_bytes(&from_bytes::<crate::snapshot_v1::RegionV2>(&p)?.upgrade())
-            }
-            (2, Kind::World) => to_bytes(&from_bytes::<crate::snapshot_v1::WorldV2>(&p)?.upgrade()),
-            // Message logs only gained new message kinds (appended).
-            (_, Kind::MessageLog) => p,
-            _ => return Err(SnapshotError::UnsupportedFormat(from)),
-        };
-        v = FORMAT_VERSION;
-    }
-    let _ = v;
-    Ok(p)
+    Ok(payload)
 }
 
 pub fn encode_world(w: &World) -> Vec<u8> {
@@ -205,6 +189,7 @@ pub fn decode_world(b: &[u8]) -> Result<World, SnapshotError> {
     let (_, p) = decode(b, Kind::World)?;
     let mut w: World = from_bytes(&p)?;
     for r in w.regions.iter_mut() {
+        r.remap_content();
         r.prepare();
     }
     Ok(w)
@@ -217,6 +202,7 @@ pub fn encode_region(r: &Region) -> Vec<u8> {
 pub fn decode_region(b: &[u8]) -> Result<Region, SnapshotError> {
     let (_, p) = decode(b, Kind::Region)?;
     let mut r: Region = from_bytes(&p)?;
+    r.remap_content();
     r.prepare();
     Ok(r)
 }

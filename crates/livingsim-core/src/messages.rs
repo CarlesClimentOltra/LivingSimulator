@@ -95,7 +95,7 @@ pub enum Body {
         profession: u16,
         schedule: u16,
     },
-    /// Phase 3: a commuting job ended (the worker left, or the firm let them go).
+    /// Phase 3: the employer's town ended a commuting job (layoff, bankruptcy, rejection).
     JobEnded {
         firm: u32,
         agent: u32,
@@ -104,6 +104,12 @@ pub enum Body {
     RemoteWage {
         agent: u32,
         net: i64,
+    },
+    /// Phase 3 (fix): a commuter left their job (sent by the worker's town). `JobEnded`
+    /// is only ever sent by the employer's town.
+    WorkerLeft {
+        firm: u32,
+        agent: u32,
     },
 }
 
