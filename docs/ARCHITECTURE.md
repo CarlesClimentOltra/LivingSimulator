@@ -774,3 +774,19 @@ changing code.
 - **Format v3.** `snapshot_v1.rs` freezes the v1 and v2 layouts. Each one upgrades straight
   to the current layout, and `bootstrap_demography` assigns education, daycare places,
   ongoing pregnancies and first friendships deterministically.
+
+## 19. Content references across versions (format v4)
+
+Phases 2 and 3 inserted new entries in the middle of `/data` lists. Snapshot formats 1–3
+stored content as plain indices (`buildings.def`, `agents.schedule`, professions,
+activities), so migrated worlds silently pointed at the wrong entries: schools became
+other buildings, and schedules changed. Since format 4:
+
+- Every region stores `content_ids`: the names behind its indices for buildings,
+  professions, schedules, activities and goods.
+- After loading, `Region::remap_content` translates every index by name: buildings,
+  agents (schedule, profession, current and next activity), journal entries, firms' goods,
+  commuting jobs and pending messages.
+- A test reverses every content list and checks that a region comes back identical.
+- Formats 1–3 cannot be trusted and are not migrated. On the next deploy the runner
+  regenerates the world from its seed at the current date (same towns, new people).

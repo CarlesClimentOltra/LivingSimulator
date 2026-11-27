@@ -98,6 +98,8 @@ pub struct Region {
     pub systems: Systems,
     /// Total events processed (statistics only).
     pub events: u64,
+    /// Names behind the content indices stored in this region (see `content_ids`).
+    pub content_ids: crate::content_ids::ContentIds,
     // ---- derived, not serialized
     #[serde(skip)]
     pub(crate) queue: EventQueue,
@@ -143,6 +145,7 @@ impl Region {
             out_seq: 0,
             systems: Systems::default(),
             events: 0,
+            content_ids: crate::content_ids::ContentIds::current(),
             queue: EventQueue::new(start),
             routes: RouteCache::default(),
             due: Vec::new(),
@@ -281,6 +284,7 @@ impl Region {
                     schedule,
                 } => self.receive_job_accept(m.src, *firm, *agent, *profession, *schedule),
                 Body::JobEnded { firm, agent } => self.receive_job_ended(m.src, *firm, *agent),
+                Body::WorkerLeft { firm, agent } => self.receive_worker_left(m.src, *firm, *agent),
                 Body::RemoteWage { agent, net } => self.receive_remote_wage(*agent, *net),
                 // Later phases.
                 Body::Migration { .. }

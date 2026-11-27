@@ -1,7 +1,6 @@
 //! Economy invariants (Phase 2).
 
 use livingsim_content::FirmKind;
-use livingsim_core::snapshot::{decode_region, encode_region, region_hash};
 use livingsim_core::time::TICKS_PER_DAY;
 use livingsim_core::{World, WINDOW};
 
@@ -77,32 +76,4 @@ fn firms_and_tenures_are_created() {
         .iter()
         .filter(|f| f.is_private())
         .all(|f| f.owner != u32::MAX));
-}
-
-/// A Phase 1 (format v1) snapshot still loads: people are kept and the economy is created.
-#[test]
-fn migrates_v1_snapshot() {
-    let bytes = include_bytes!("fixtures/region_v1_village.bin.zst");
-    let h = livingsim_core::snapshot::read_header(bytes).unwrap();
-    assert_eq!(h.format_version, 1);
-    let mut r = decode_region(bytes).expect("v1 migrates");
-    assert_eq!(r.population(), 501);
-    assert!(r.systems.economy.bootstrapped);
-    assert!(!r.systems.economy.firms.is_empty());
-    // Deterministic migration.
-    let again = decode_region(bytes).unwrap();
-    assert_eq!(region_hash(&r), region_hash(&again));
-    // And it keeps simulating (the village alone, without inbound messages).
-    let total = r.money_total();
-    for _ in 0..TICKS_PER_DAY {
-        if r.tick.is_multiple_of(WINDOW) {
-            r.take_outbox();
-            r.receive(&[]);
-        }
-        r.step();
-    }
-    assert_eq!(r.money_total(), total);
-    // Round trip in the new format.
-    let back = decode_region(&encode_region(&r)).unwrap();
-    assert_eq!(region_hash(&back), region_hash(&r));
 }

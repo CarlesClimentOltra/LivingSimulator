@@ -14,6 +14,7 @@
 pub mod agents;
 pub mod buildings;
 pub mod catalog;
+pub mod content_ids;
 pub mod gen;
 pub mod journal;
 mod life;
@@ -28,7 +29,6 @@ pub mod replay;
 pub mod rng;
 pub mod roads;
 pub mod snapshot;
-mod snapshot_v1;
 pub mod systems;
 pub mod time;
 pub mod world;

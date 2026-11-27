@@ -44,6 +44,18 @@ impl Journal {
         };
         self.head[a as usize] = h.wrapping_add(1);
     }
+    /// Translates the activity index stored in `Started` entries (content remapping).
+    pub fn remap_activities(&mut self, f: impl Fn(u16) -> u16) {
+        let started = livingsim_content::JournalKind::Started as u16 + 1;
+        for entries in self.entries.iter_mut() {
+            for e in entries.iter_mut() {
+                if e.kind == started {
+                    e.arg = f(e.arg);
+                }
+            }
+        }
+    }
+
     /// Entries from newest to oldest.
     pub fn read(&self, a: u32) -> Vec<Entry> {
         let h = self.head[a as usize] as usize;

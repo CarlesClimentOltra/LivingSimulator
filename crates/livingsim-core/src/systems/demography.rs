@@ -962,7 +962,7 @@ impl Region {
         if let Some(job) = self.systems.demography.remote_jobs.remove(&a) {
             self.send(
                 job.region,
-                Body::JobEnded {
+                Body::WorkerLeft {
                     firm: job.firm,
                     agent: a,
                 },
@@ -1670,7 +1670,7 @@ impl Region {
         if let Some(job) = self.systems.demography.remote_jobs.remove(&a) {
             self.send(
                 job.region,
-                Body::JobEnded {
+                Body::WorkerLeft {
                     firm: job.firm,
                     agent: a,
                 },
@@ -1908,12 +1908,16 @@ impl Region {
         }
     }
 
-    pub(crate) fn receive_job_ended(&mut self, src: u16, firm: u32, agent: u32) {
-        // Either a worker from another town quit, or our commuter lost their job there.
+    /// A worker from another town quit one of our jobs.
+    pub(crate) fn receive_worker_left(&mut self, src: u16, firm: u32, agent: u32) {
         self.systems
             .demography
             .remote_staff
             .retain(|s| !(s.region == src && s.agent == agent && s.firm == firm));
+    }
+
+    /// The town where our commuter works ended their job (only that town sends this).
+    pub(crate) fn receive_job_ended(&mut self, src: u16, firm: u32, agent: u32) {
         if self
             .systems
             .demography
