@@ -242,12 +242,54 @@ pub struct BuildingDef {
     pub stock: u32,
     /// Maximum visitors at once (0 = unlimited).
     pub capacity: u16,
+    /// Business run here, if any.
+    pub firm: Option<FirmSpec>,
+    /// Monthly rent per dwelling before location adjustments, in cents.
+    pub rent_cents: i64,
     /// Patterns for firm names, e.g. "{family} Market". Empty = generic name.
     pub name_patterns: Vec<String>,
     /// Render hints.
     pub color: u32,
     pub roof_color: u32,
     pub roof: RoofKind,
+}
+
+/// What kind of business (or public service) runs in a building.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum FirmKind {
+    /// Paid by the town hall (schools, hospital, police, parks…).
+    Public,
+    /// Sells goods (food) to households.
+    Shop,
+    /// Serves meals and drinks; uses food from its own stock.
+    FoodService,
+    /// Sells an experience (bar, cinema, gym); no stock.
+    Leisure,
+    /// Produces food per worked shift.
+    Farm,
+    /// Produces goods per worked shift and exports them.
+    Factory,
+    /// Buys from producers or imports, supplies shops and food services.
+    Warehouse,
+    /// Sells services to the rest of the world.
+    Office,
+    /// Owns and rents out homes.
+    RealEstate,
+    /// Paid by the town hall for maintenance (and builds in Phase 4).
+    Construction,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FirmSpec {
+    pub kind: FirmKind,
+    /// Good produced/sold (index into `Content::goods`), if any.
+    pub good: Option<u16>,
+    /// Units produced per worked shift (farms, factories).
+    pub per_shift: u32,
+    /// Revenue from the rest of the world per worked shift (offices), in cents.
+    pub export_per_shift_cents: i64,
+    /// Food used per customer served (food services).
+    pub food_per_customer: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -301,10 +343,16 @@ pub enum JournalKind {
     NoFoodAtHome = 10,
     MovedIn = 11,
     BirthdayAge = 12,
+    PaidRent = 13,
+    MissedRent = 14,
+    Hired = 15,
+    LaidOff = 16,
+    OpenedBusiness = 17,
+    ReceivedRent = 18,
 }
 
 impl JournalKind {
-    pub const ALL: [JournalKind; 13] = [
+    pub const ALL: [JournalKind; 19] = [
         JournalKind::WokeUp,
         JournalKind::WentTo,
         JournalKind::Started,
@@ -318,6 +366,12 @@ impl JournalKind {
         JournalKind::NoFoodAtHome,
         JournalKind::MovedIn,
         JournalKind::BirthdayAge,
+        JournalKind::PaidRent,
+        JournalKind::MissedRent,
+        JournalKind::Hired,
+        JournalKind::LaidOff,
+        JournalKind::OpenedBusiness,
+        JournalKind::ReceivedRent,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -334,6 +388,12 @@ impl JournalKind {
             JournalKind::NoFoodAtHome => "no_food_at_home",
             JournalKind::MovedIn => "moved_in",
             JournalKind::BirthdayAge => "birthday",
+            JournalKind::PaidRent => "paid_rent",
+            JournalKind::MissedRent => "missed_rent",
+            JournalKind::Hired => "hired",
+            JournalKind::LaidOff => "laid_off",
+            JournalKind::OpenedBusiness => "opened_business",
+            JournalKind::ReceivedRent => "received_rent",
         }
     }
     pub fn from_u16(v: u16) -> Option<JournalKind> {
@@ -351,16 +411,32 @@ pub enum NewsKind {
     Visitors = 3,
     FoodDelivery = 4,
     CityFounded = 5,
+    PriceUp = 6,
+    PriceDown = 7,
+    Bankruptcy = 8,
+    Reopened = 9,
+    Unemployment = 10,
+    Budget = 11,
+    TaxChange = 12,
+    FoodImports = 13,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 6] = [
+    pub const ALL: [NewsKind; 14] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
         NewsKind::Visitors,
         NewsKind::FoodDelivery,
         NewsKind::CityFounded,
+        NewsKind::PriceUp,
+        NewsKind::PriceDown,
+        NewsKind::Bankruptcy,
+        NewsKind::Reopened,
+        NewsKind::Unemployment,
+        NewsKind::Budget,
+        NewsKind::TaxChange,
+        NewsKind::FoodImports,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -370,6 +446,14 @@ impl NewsKind {
             NewsKind::Visitors => "visitors",
             NewsKind::FoodDelivery => "food_delivery",
             NewsKind::CityFounded => "city_founded",
+            NewsKind::PriceUp => "price_up",
+            NewsKind::PriceDown => "price_down",
+            NewsKind::Bankruptcy => "bankruptcy",
+            NewsKind::Reopened => "reopened",
+            NewsKind::Unemployment => "unemployment",
+            NewsKind::Budget => "budget",
+            NewsKind::TaxChange => "tax_change",
+            NewsKind::FoodImports => "food_imports",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -395,6 +479,41 @@ pub struct EconomyDef {
     pub farm_food_per_day: u32,
     pub starting_money_min_cents: i64,
     pub starting_money_max_cents: i64,
+    pub income_tax_permille: u16,
+    pub sales_tax_permille: u16,
+    pub min_income_tax_permille: u16,
+    pub max_income_tax_permille: u16,
+    /// Monthly tax paid by owner-occupiers.
+    pub property_tax_cents: i64,
+    /// Price a farm asks per unit of food, at start.
+    pub farm_price_cents: i64,
+    /// Warehouse margin over its purchase price (‰).
+    pub wholesale_markup_permille: u16,
+    /// Price of imported food relative to the farm price (‰).
+    pub import_price_permille: u16,
+    /// Price of exported surplus relative to the farm price (‰).
+    pub export_price_permille: u16,
+    /// Food a warehouse can import per day.
+    pub import_cap_per_day: u32,
+    /// Daily maintenance paid by the town per public building.
+    pub maintenance_per_building_cents: i64,
+    /// Initial cash of a firm, in days of full payroll.
+    pub firm_start_cash_days: u16,
+    /// Initial treasury, in days of public spending.
+    pub treasury_start_days: u16,
+    /// Days with negative cash before the first layoff.
+    pub layoff_after_days: u16,
+    /// Days with negative cash before bankruptcy.
+    pub bankruptcy_after_days: u16,
+    /// Days a bankrupt business stays closed before someone may reopen it.
+    pub reopen_after_days: u16,
+    /// Maximum hires per firm per day.
+    pub hires_per_day: u16,
+    /// Price change per daily adjustment (‰).
+    pub price_step_permille: u16,
+    /// Price bounds relative to the base price (‰).
+    pub min_price_permille: u16,
+    pub max_price_permille: u16,
 }
 
 /// Region templates used by the world generator.
@@ -492,6 +611,9 @@ impl Content {
             .iter()
             .position(|a| a.id == id)
             .map(|i| i as u16)
+    }
+    pub fn good(&self, id: &str) -> Option<u16> {
+        self.goods.iter().position(|g| g.id == id).map(|i| i as u16)
     }
     pub fn profession(&self, id: &str) -> Option<u16> {
         self.professions

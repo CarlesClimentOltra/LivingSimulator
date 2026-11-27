@@ -117,6 +117,12 @@ pub struct Building {
     /// Maximum visitors at once (0 = unlimited).
     #[serde(default)]
     pub capacity: u16,
+    /// Business run here. Buildings with jobs and no `firm` are public services.
+    #[serde(default)]
+    pub firm: Option<FirmSpec>,
+    /// Monthly rent per dwelling, in cents.
+    #[serde(default)]
+    pub rent_cents: i64,
     #[serde(default)]
     pub name_patterns: Vec<String>,
     /// "#rrggbb"
@@ -138,6 +144,21 @@ fn default_roof_color() -> String {
 }
 fn default_roof() -> RoofKind {
     RoofKind::Flat
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FirmSpec {
+    pub kind: crate::FirmKind,
+    /// Good id from goods.ron.
+    #[serde(default)]
+    pub good: Option<String>,
+    #[serde(default)]
+    pub per_shift: u32,
+    #[serde(default)]
+    pub export_per_shift_cents: i64,
+    #[serde(default)]
+    pub food_per_customer: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -185,6 +206,26 @@ pub struct Economy {
     pub meals_per_person_bought: u16,
     pub farm_food_per_day: u32,
     pub starting_money_cents: (i64, i64),
+    pub income_tax_permille: u16,
+    pub sales_tax_permille: u16,
+    /// (min, max) income tax the town may set.
+    pub income_tax_bounds_permille: (u16, u16),
+    pub property_tax_cents: i64,
+    pub farm_price_cents: i64,
+    pub wholesale_markup_permille: u16,
+    pub import_price_permille: u16,
+    pub export_price_permille: u16,
+    pub import_cap_per_day: u32,
+    pub maintenance_per_building_cents: i64,
+    pub firm_start_cash_days: u16,
+    pub treasury_start_days: u16,
+    pub layoff_after_days: u16,
+    pub bankruptcy_after_days: u16,
+    pub reopen_after_days: u16,
+    pub hires_per_day: u16,
+    pub price_step_permille: u16,
+    /// (min, max) price relative to the base price.
+    pub price_bounds_permille: (u16, u16),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

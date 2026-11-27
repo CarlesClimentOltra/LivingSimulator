@@ -21,5 +21,6 @@
     (id: "trainer",         name: "Fitness trainer",  wage_per_shift_cents: 10000, schedules: ["late_shift", "early_shift"]),
     (id: "projectionist",   name: "Cinema staff",     wage_per_shift_cents: 8800,  schedules: ["weekend_late"], min_age: 16),
     (id: "bartender",       name: "Bartender",        wage_per_shift_cents: 9200,  schedules: ["weekend_late"]),
+    (id: "real_estate_agent", name: "Real estate agent", wage_per_shift_cents: 13500, schedules: ["office_day"], min_age: 20),
     (id: "builder",         name: "Construction worker", wage_per_shift_cents: 13000, schedules: ["early_shift"]),
 ]
