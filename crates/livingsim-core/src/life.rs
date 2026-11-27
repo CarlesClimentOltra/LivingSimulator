@@ -127,19 +127,7 @@ impl Region {
         let c = catalog();
         self.update_needs(a, t);
         if act == c.work_activity {
-            let p = self.agents.profession[i];
-            if p != u16::MAX {
-                let wage = c.content.professions[p as usize].wage_per_shift_cents;
-                self.agents.money[i] += wage;
-                self.today.wages_paid_cents += wage;
-                self.journal(
-                    a,
-                    t,
-                    JournalKind::GotPaid,
-                    0,
-                    wage.clamp(0, u32::MAX as i64) as u32,
-                );
-            }
+            self.econ_shift_done(a, t);
         }
     }
 
@@ -182,8 +170,18 @@ impl Region {
             }
             ActivityKind::Shop => self.buy_groceries(a, t, place),
             _ => {
-                if def.cost_cents > 0 {
-                    self.agents.money[i] -= def.cost_cents;
+                let paid_place = place != NONE
+                    && place != self.agents.home[i]
+                    && !matches!(def.kind, ActivityKind::Work | ActivityKind::School);
+                if paid_place
+                    && (def.cost_cents > 0 || self.firm_at(place).is_some())
+                    && !self.sell_service(a, place, def.cost_cents)
+                {
+                    // Closed, sold out or too expensive: give up and decide again soon.
+                    self.agents.act[i] = c.relax_activity;
+                    self.agents.until[i] = t + 5;
+                    self.set_event(a, t + 5);
+                    return;
                 }
                 if matches!(def.kind, ActivityKind::EatOut) {
                     self.today.meals_out += 1;
@@ -208,8 +206,7 @@ impl Region {
 
     fn buy_groceries(&mut self, a: AgentId, t: Tick, shop: BuildingId) {
         let i = a as usize;
-        let c = catalog();
-        let econ = &c.content.economy;
+        let econ = &catalog().content.economy;
         let hh = self.agents.household[i];
         let members = if hh == NONE {
             1
@@ -217,9 +214,7 @@ impl Region {
             self.households.members[hh as usize].max(1) as u32
         };
         let want = members * econ.meals_per_person_bought as u32;
-        let stock = &mut self.buildings.stock[shop as usize];
-        let got = want.min(*stock);
-        *stock -= got;
+        let (got, cost) = self.sell_groceries(a, shop, want);
         if got == 0 {
             self.buildings.empty_today[shop as usize] =
                 self.buildings.empty_today[shop as usize].saturating_add(1);
@@ -227,14 +222,12 @@ impl Region {
             self.journal(a, t, JournalKind::ShelvesEmpty, 0, shop);
             return;
         }
-        let cost = got as i64 * econ.meal_price_cents;
-        self.agents.money[i] -= cost;
         if hh != NONE {
             let f = &mut self.households.food[hh as usize];
             *f = (*f as u32 + got).min(u16::MAX as u32) as u16;
         }
         self.today.groceries += 1;
-        // Subject: shop; amount goes in `arg` as euros (cents / 100), capped.
+        // Subject: shop; amount goes in `arg` as dollars, capped.
         self.journal(
             a,
             t,
@@ -523,7 +516,7 @@ impl Region {
         let mut best: Option<(u32, BuildingId)> = None;
         for &b in self.buildings.with_tag(tag) {
             let def = self.buildings.def[b as usize];
-            if open_until(def, t).is_none() {
+            if open_until(def, t).is_none() || self.firm_closed(b) {
                 continue;
             }
             let cap = content().buildings[def as usize].capacity;
@@ -601,7 +594,15 @@ impl Region {
             if dest == NONE {
                 continue;
             }
-            if def.cost_cents > 0 && money < def.cost_cents {
+            let cost = if let Place::Tag(_) = def.place {
+                match self.service_price(dest, def.cost_cents) {
+                    Some(p) => p,
+                    None => continue,
+                }
+            } else {
+                def.cost_cents
+            };
+            if cost > 0 && money < cost {
                 continue;
             }
             let mode = if visitor {
@@ -679,9 +680,9 @@ impl Region {
             // Travel and money costs, personality.
             score -= travel as i64 * 22;
             let thrifty = traits::get(tr, traits::THRIFTY) as i64;
-            score -= def.cost_cents * (thrifty + 4) / 40;
+            score -= cost * (thrifty + 4) / 40;
             if money < 5_000 {
-                score -= def.cost_cents / 2;
+                score -= cost / 2;
             }
             let social_gain = c.rates[ai as usize][Need::Social as usize].max(0) as i64;
             score += social_gain * (traits::get(tr, traits::SOCIABLE) as i64 - 7) / 60;

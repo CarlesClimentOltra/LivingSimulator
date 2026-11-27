@@ -41,12 +41,13 @@ fn serialize_roundtrip_continues_identically() {
 
 #[test]
 fn single_region_replay_matches_full_world() {
-    // Run the full world for a day and a half, recording what each region receives.
+    // Run the full world for three days, recording what each region receives (farms start
+    // selling their surplus to the other town after a couple of days).
     let mut w = World::new(SEED);
     w.step_to(TICKS_PER_DAY); // checkpoint at a window boundary
     let checkpoints: Vec<Vec<u8>> = w.regions.iter().map(encode_region).collect();
     let start = w.tick;
-    let end = start + TICKS_PER_DAY + 120;
+    let end = start + 3 * TICKS_PER_DAY + 120;
     let mut logs: Vec<MessageLog> = (0..w.regions.len() as u16)
         .map(|r| MessageLog {
             region: r,

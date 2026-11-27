@@ -231,6 +231,7 @@ function frame() {
   people.interiors = interiorsOn;
   people.interiorCentre.copy(stage.target);
   people.interiorRadius = 30 / Math.max(1, zoom / 4);
+  city.updateInteriors(stage.target, people.interiorRadius + 4);
   people.update(t, zoom, now);
   if (selected) {
     const ri = statics.findIndex((s) => s.info.id === selected!.region);

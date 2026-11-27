@@ -1,11 +1,39 @@
-// Phase 1 economy parameters (expanded in Phase 2: firms, prices, rents, taxes).
+// Economy parameters. Money is in US dollar cents; rates are per mille (‰).
 (
+    // Paid daily by the town hall.
     pension_per_day_cents: 4500,
     benefit_per_day_cents: 2200,
+    // Base retail price of one meal of groceries (shops start here and adjust).
     meal_price_cents: 450,
     // Meals per household member bought on each grocery trip.
     meals_per_person_bought: 6,
-    // Food produced per farm per day, shipped to shops (in meals).
-    farm_food_per_day: 400,
+    // Unused since Phase 2 (farms produce per worked shift, see buildings.ron).
+    farm_food_per_day: 0,
     starting_money_cents: (20000, 600000),
+
+    // Town hall.
+    income_tax_permille: 160,
+    sales_tax_permille: 80,
+    income_tax_bounds_permille: (50, 400),
+    property_tax_cents: 12000,
+    maintenance_per_building_cents: 15000,
+    treasury_start_days: 45,
+
+    // Food supply chain: farm -> warehouse -> shops and restaurants.
+    farm_price_cents: 160,
+    wholesale_markup_permille: 300,
+    import_price_permille: 1900,
+    export_price_permille: 800,
+    import_cap_per_day: 9000,
+
+    // Firms and labour market.
+    firm_start_cash_days: 30,
+    layoff_after_days: 5,
+    bankruptcy_after_days: 40,
+    reopen_after_days: 10,
+    hires_per_day: 5,
+
+    // Prices.
+    price_step_permille: 30,
+    price_bounds_permille: (600, 2500),
 )

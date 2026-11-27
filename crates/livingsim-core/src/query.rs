@@ -43,6 +43,64 @@ pub struct AgentCard {
     pub money_cents: i64,
     pub family: Vec<Relative>,
     pub journal: Vec<JournalLine>,
+    /// "Owns their home" / "Rents from … for $X a month".
+    pub housing: String,
+    /// Monthly rent paid by the household (0 for owners).
+    pub rent_cents: i64,
+    /// Months of unpaid rent.
+    pub rent_arrears: u8,
+    /// Businesses owned by this person.
+    pub businesses: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FirmInfo {
+    pub kind: String,
+    pub open: bool,
+    pub owner: String,
+    pub cash_cents: i64,
+    /// Human-readable price ("$4.50 a meal", "112% of the usual price").
+    pub price: String,
+    pub stock: u32,
+    pub staff: u32,
+    pub positions: u32,
+    pub revenue_yesterday_cents: i64,
+    pub costs_yesterday_cents: i64,
+    pub customers_yesterday: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct BuildingCard {
+    pub id: u32,
+    pub name: String,
+    pub kind: String,
+    pub floors: u8,
+    pub dwellings: u16,
+    pub present: u16,
+    pub occupants: Vec<(u32, String)>,
+    pub firm: Option<FirmInfo>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EconomyStats {
+    pub treasury_cents: i64,
+    pub income_tax_permille: u16,
+    pub sales_tax_permille: u16,
+    pub unemployment_permille: u32,
+    pub food_price_cents: i64,
+    pub avg_rent_cents: i64,
+    pub firms_open: u32,
+    pub firms_closed: u32,
+    pub owners: u32,
+    pub renters: u32,
+    pub output_cents: i64,
+    pub exports_cents: i64,
+    pub imports_cents: i64,
+    pub rent_paid_cents: i64,
+    pub hires: u32,
+    pub layoffs: u32,
+    /// Daily history (oldest first) for charts.
+    pub history: Vec<crate::systems::economy::DaySample>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -70,6 +128,7 @@ pub struct RegionStats {
     pub shelves_empty_yesterday: u32,
     pub wages_yesterday_cents: i64,
     pub events_total: u64,
+    pub economy: EconomyStats,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -80,10 +139,19 @@ pub struct NewsLine {
     pub body: String,
 }
 
+/// "$1,234.56" (US dollars, money is stored in cents).
 pub fn format_money(cents: i64) -> String {
     let sign = if cents < 0 { "-" } else { "" };
     let c = cents.unsigned_abs();
-    format!("{sign}{}.{:02} ₡", c / 100, c % 100)
+    let dollars = (c / 100).to_string();
+    let mut grouped = String::new();
+    for (i, ch) in dollars.chars().enumerate() {
+        if i > 0 && (dollars.len() - i).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(ch);
+    }
+    format!("{sign}${grouped}.{:02}", c % 100)
 }
 
 pub fn format_when(t: Tick) -> String {
@@ -283,6 +351,15 @@ impl Region {
                 text: self.journal_text(k, e.arg, e.subject),
             })
             .collect();
+        let (housing, rent_cents, rent_arrears) = self.housing_text(a);
+        let businesses = self
+            .systems
+            .economy
+            .firms
+            .iter()
+            .filter(|f| f.owner == a && f.open)
+            .map(|f| self.building_name(f.building))
+            .collect();
         Some(AgentCard {
             id: a,
             region: self.id,
@@ -308,6 +385,10 @@ impl Region {
             money_cents: self.agents.money[i],
             family,
             journal,
+            housing,
+            rent_cents,
+            rent_arrears,
+            businesses,
         })
     }
 
@@ -338,6 +419,7 @@ impl Region {
             shelves_empty_yesterday: self.yesterday.shelves_empty,
             wages_yesterday_cents: self.yesterday.wages_paid_cents,
             events_total: self.events,
+            economy: self.economy_stats(),
         };
         let mut by_act = vec![0u32; c.activities.len()];
         let mut needs = [0u64; livingsim_content::NEED_COUNT];
@@ -404,13 +486,19 @@ impl Region {
                     NewsKind::Visitors | NewsKind::FoodDelivery => {
                         self.region_label(n.subject as u16)
                     }
-                    NewsKind::BusiestPlace | NewsKind::ShelvesEmpty => {
-                        self.building_name(n.subject)
-                    }
+                    NewsKind::BusiestPlace
+                    | NewsKind::ShelvesEmpty
+                    | NewsKind::Bankruptcy
+                    | NewsKind::Reopened => self.building_name(n.subject),
                     _ => self.name().to_string(),
+                };
+                let amount = match kind {
+                    NewsKind::Budget => format_money(n.n as i64 * 100),
+                    _ => format_money(n.n as i64),
                 };
                 let f = |s: &str| {
                     s.replace("{place}", &place)
+                        .replace("{amount}", &amount)
                         .replace("{n}", &n.n.to_string())
                         .replace("{city}", self.name())
                 };
@@ -429,5 +517,136 @@ impl Region {
         (0..self.agents.len() as u32)
             .filter(|a| self.agents.alive(*a) && self.agents.place[*a as usize] == b)
             .collect()
+    }
+
+    fn housing_text(&self, a: AgentId) -> (String, i64, u8) {
+        use crate::systems::economy::TenureKind;
+        let hh = self.agents.household[a as usize];
+        let Some(t) = (hh != NONE)
+            .then(|| self.systems.economy.tenure.get(hh as usize))
+            .flatten()
+        else {
+            return ("—".into(), 0, 0);
+        };
+        let text = match t.kind {
+            TenureKind::Owner => "Owns their home".to_string(),
+            TenureKind::Municipal => format!(
+                "Rents from the municipal housing company for {} a month",
+                format_money(t.rent)
+            ),
+            TenureKind::Agency => {
+                let f = &self.systems.economy.firms[t.landlord as usize];
+                format!(
+                    "Rents from {} for {} a month",
+                    self.building_name(f.building),
+                    format_money(t.rent)
+                )
+            }
+            TenureKind::PrivateLandlord => {
+                format!(
+                    "Rents from {} for {} a month",
+                    self.full_name(t.landlord),
+                    format_money(t.rent)
+                )
+            }
+        };
+        (text, t.rent, t.arrears)
+    }
+
+    pub fn building_card(&self, b: BuildingId) -> Option<BuildingCard> {
+        if b as usize >= self.buildings.len() {
+            return None;
+        }
+        let def = &content().buildings[self.buildings.def[b as usize] as usize];
+        let occupants = self
+            .occupants(b)
+            .into_iter()
+            .take(40)
+            .map(|a| (a, self.full_name(a)))
+            .collect();
+        let firm = self.firm_at(b).map(|f| {
+            use livingsim_content::FirmKind;
+            let fm = &self.systems.economy.firms[f as usize];
+            let staff = (0..self.agents.len() as u32)
+                .filter(|a| {
+                    self.agents.work[*a as usize] == b
+                        && self.agents.profession[*a as usize] != u16::MAX
+                })
+                .count() as u32;
+            let price = match fm.kind {
+                FirmKind::Shop => format!("{} a meal", format_money(fm.price)),
+                FirmKind::Farm | FirmKind::Warehouse => {
+                    format!("{} a unit (wholesale)", format_money(fm.price))
+                }
+                FirmKind::FoodService | FirmKind::Leisure => {
+                    format!("{}% of the usual price", fm.price / 10)
+                }
+                _ => "—".into(),
+            };
+            FirmInfo {
+                kind: format!("{:?}", fm.kind),
+                open: fm.open,
+                owner: if fm.owner == NONE {
+                    if fm.kind == FirmKind::Public {
+                        "the town hall".into()
+                    } else {
+                        "nobody".into()
+                    }
+                } else {
+                    self.full_name(fm.owner)
+                },
+                cash_cents: fm.cash,
+                price,
+                stock: fm.stock,
+                staff,
+                positions: fm.positions as u32,
+                revenue_yesterday_cents: fm.revenue_yesterday,
+                costs_yesterday_cents: fm.costs_yesterday,
+                customers_yesterday: fm.customers_yesterday,
+            }
+        });
+        Some(BuildingCard {
+            id: b,
+            name: self.building_name(b),
+            kind: def.name.clone(),
+            floors: def.floors,
+            dwellings: def.dwellings,
+            present: self.buildings.present.get(b as usize).copied().unwrap_or(0),
+            occupants,
+            firm,
+        })
+    }
+
+    pub fn economy_stats(&self) -> EconomyStats {
+        use crate::systems::economy::TenureKind;
+        let e = &self.systems.economy;
+        let last = e.history.last().cloned().unwrap_or_default();
+        EconomyStats {
+            treasury_cents: e.treasury,
+            income_tax_permille: e.income_tax_permille,
+            sales_tax_permille: e.sales_tax_permille,
+            unemployment_permille: last.unemployment_permille,
+            food_price_cents: last.food_price,
+            avg_rent_cents: last.avg_rent,
+            firms_open: last.firms_open,
+            firms_closed: last.firms_closed,
+            owners: e
+                .tenure
+                .iter()
+                .filter(|t| t.kind == TenureKind::Owner)
+                .count() as u32,
+            renters: e
+                .tenure
+                .iter()
+                .filter(|t| t.kind != TenureKind::Owner)
+                .count() as u32,
+            output_cents: last.output,
+            exports_cents: e.yesterday.exports,
+            imports_cents: e.yesterday.imports,
+            rent_paid_cents: e.yesterday.rent_paid,
+            hires: e.yesterday.hires,
+            layoffs: e.yesterday.layoffs,
+            history: e.history.clone(),
+        }
     }
 }

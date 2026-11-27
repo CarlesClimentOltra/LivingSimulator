@@ -11,7 +11,7 @@ use crate::time::age_years;
 /// u32 values per building in [`buildings_packed`].
 pub const BUILDING_STRIDE: usize = 9;
 /// u32 values per agent in [`agents_packed`].
-pub const AGENT_STRIDE: usize = 7;
+pub const AGENT_STRIDE: usize = 8;
 
 /// Activity codes for the renderer beyond content activity indices.
 pub const R_TRAVEL: u32 = 0xFFFE;
@@ -40,7 +40,7 @@ pub fn buildings_packed(r: &Region) -> Vec<u32> {
 }
 
 /// Per agent slot: act, place, trip_from, trip_to, depart, arrive, info where
-/// info = flags | age << 8 | (shirt colour seed & 0xff) << 16.
+/// info = flags | age << 8 | (shirt colour seed & 0xff) << 16, household.
 pub fn agents_packed(r: &Region) -> Vec<u32> {
     let a = &r.agents;
     let t = r.tick;
@@ -64,6 +64,7 @@ pub fn agents_packed(r: &Region) -> Vec<u32> {
             a.trip_depart[i],
             a.until[i],
             info,
+            a.household[i],
         ]);
     }
     out

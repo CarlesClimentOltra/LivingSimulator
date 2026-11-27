@@ -37,7 +37,8 @@ pub struct Traveller {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Body {
-    /// Goods shipped to the destination (Phase 1: food from farms, in meals).
+    /// Goods given to the destination without payment (Phase 1 format, kept so old
+    /// snapshots still decode).
     Trade {
         good: u16,
         qty: u32,
@@ -70,6 +71,18 @@ pub enum Body {
     NewsItem {
         kind: u16,
         value: u32,
+    },
+    /// Phase 2: goods shipped with an invoice; the receiver pays with `Payment`.
+    Sale {
+        good: u16,
+        qty: u32,
+        unit_price: i64,
+        seller_firm: u32,
+    },
+    /// Phase 2: money for a `Sale`, credited to the seller firm.
+    Payment {
+        firm: u32,
+        amount: i64,
     },
 }
 

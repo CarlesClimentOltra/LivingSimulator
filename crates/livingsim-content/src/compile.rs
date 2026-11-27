@@ -331,6 +331,62 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             .iter()
             .map(|t| tags.iter().position(|x| x == t).unwrap() as u16)
             .collect();
+        let firm = match &b.firm {
+            None => {
+                if b.jobs.is_empty() {
+                    None
+                } else {
+                    Some(FirmSpec {
+                        kind: FirmKind::Public,
+                        good: None,
+                        per_shift: 0,
+                        export_per_shift_cents: 0,
+                        food_per_customer: 0,
+                    })
+                }
+            }
+            Some(f) => {
+                let good = match &f.good {
+                    None => None,
+                    Some(g) => match raw.goods.iter().position(|x| &x.id == g) {
+                        Some(i) => Some(i as u16),
+                        None => {
+                            ctx.err(format!("buildings.ron `{}`: unknown good `{g}`", b.id));
+                            None
+                        }
+                    },
+                };
+                if matches!(
+                    f.kind,
+                    FirmKind::Shop | FirmKind::Farm | FirmKind::Factory | FirmKind::Warehouse
+                ) && good.is_none()
+                {
+                    ctx.err(format!(
+                        "buildings.ron `{}`: a {:?} firm needs a `good`",
+                        b.id, f.kind
+                    ));
+                }
+                if matches!(f.kind, FirmKind::Farm | FirmKind::Factory) && f.per_shift == 0 {
+                    ctx.err(format!(
+                        "buildings.ron `{}`: a {:?} firm needs `per_shift` > 0",
+                        b.id, f.kind
+                    ));
+                }
+                Some(FirmSpec {
+                    kind: f.kind,
+                    good,
+                    per_shift: f.per_shift,
+                    export_per_shift_cents: f.export_per_shift_cents,
+                    food_per_customer: f.food_per_customer,
+                })
+            }
+        };
+        if b.dwellings > 0 && b.rent_cents <= 0 {
+            ctx.err(format!(
+                "buildings.ron `{}`: housing needs `rent_cents` > 0",
+                b.id
+            ));
+        }
         buildings.push(BuildingDef {
             id: b.id.clone(),
             name: b.name.clone(),
@@ -347,6 +403,8 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             students: b.students,
             stock: b.stock,
             capacity: b.capacity,
+            firm,
+            rent_cents: b.rent_cents,
             name_patterns: b.name_patterns.clone(),
             color,
             roof_color,
@@ -517,18 +575,35 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             farm_food_per_day: e.farm_food_per_day,
             starting_money_min_cents: e.starting_money_cents.0,
             starting_money_max_cents: e.starting_money_cents.1.max(e.starting_money_cents.0),
+            income_tax_permille: e.income_tax_permille,
+            sales_tax_permille: e.sales_tax_permille,
+            min_income_tax_permille: e.income_tax_bounds_permille.0,
+            max_income_tax_permille: e
+                .income_tax_bounds_permille
+                .1
+                .max(e.income_tax_bounds_permille.0),
+            property_tax_cents: e.property_tax_cents,
+            farm_price_cents: e.farm_price_cents.max(1),
+            wholesale_markup_permille: e.wholesale_markup_permille,
+            import_price_permille: e.import_price_permille,
+            export_price_permille: e.export_price_permille,
+            import_cap_per_day: e.import_cap_per_day,
+            maintenance_per_building_cents: e.maintenance_per_building_cents,
+            firm_start_cash_days: e.firm_start_cash_days,
+            treasury_start_days: e.treasury_start_days,
+            layoff_after_days: e.layoff_after_days.max(1),
+            bankruptcy_after_days: e.bankruptcy_after_days.max(e.layoff_after_days + 1),
+            reopen_after_days: e.reopen_after_days,
+            hires_per_day: e.hires_per_day,
+            price_step_permille: e.price_step_permille,
+            min_price_permille: e.price_bounds_permille.0.max(1),
+            max_price_permille: e.price_bounds_permille.1.max(e.price_bounds_permille.0),
         },
         None => {
             ctx.err("economy.ron is missing");
-            EconomyDef {
-                pension_per_day_cents: 0,
-                benefit_per_day_cents: 0,
-                meal_price_cents: 0,
-                meals_per_person_bought: 0,
-                farm_food_per_day: 0,
-                starting_money_min_cents: 0,
-                starting_money_max_cents: 0,
-            }
+            return Err(ContentError {
+                problems: ctx.problems,
+            });
         }
     };
 

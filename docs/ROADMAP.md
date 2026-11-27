@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phase 0 is done, and Phase 1 is implemented (milestones 1–10 below).
+> Status: **approved**. Phases 0–2 are implemented.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -77,20 +77,50 @@ for 48 h.
 
 ---
 
-## Phase 2 — Economy
+## Phase 2 — Economy (+ ground and interiors polish)
 
-🎯 *Shops visibly run out of stock and get restocked by trucks, prices and rents show up
-in the stats panel, farms and allotments produce food, the town budget pays for services,
-the newspaper reports on prices and unemployment.*
+🎯 *Money really circulates. Shops set their prices and run out of stock when wholesalers
+can't keep up. Firms hire, fire and sometimes go bankrupt, and new owners reopen them. People
+pay monthly rent to the municipal housing company, a private agency or a private landlord;
+some own their home. The town hall collects taxes and pays teachers, police and doctors.
+The stats panel charts prices, unemployment and the budget, and the newspaper reports on all
+of it. Around the towns there is real land instead of sky, and zooming into a building
+removes its roof and shows each floor, with families on their own floor and furniture.*
 
-- Firms with payroll, revenue, inventory; wages by profession.
-- Goods and simple supply chains (farm → warehouse → shop); trucks as analytic trips.
-- Household budgets: rent, food, leisure; the `money` need gets meaning.
-- Prices adjusting to stock/demand with integer rules; rent by location/demand.
-- Municipal taxes and public spending (police, schools, hospital, maintenance).
-- Unemployment, job search, firing/hiring; bankruptcy and new firms.
-- Inter-region `Trade` with real goods and prices.
-- Stats panel: GDP-like indicators, prices, unemployment, budget charts.
+Decisions (approved):
+- Middle-ground realism: a closed money loop, firms, dynamic prices, a public budget. No
+  banks or loans yet.
+- The currency is the US dollar ($), stored in integer cents.
+- Housing is owned by a municipal housing company, private real-estate agencies, and private
+  people (owner-occupiers, or landlords who receive the rent).
+- Delivery trucks are deferred: shipments are invisible for now and become visible trips
+  in a later phase.
+
+Milestones:
+1. **Money accounting.** Every transfer goes through one function. A test checks that money
+   in a region is conserved except for explicit external flows (rest of the world, other
+   regions).
+2. **Firms.** One firm per commercial or industrial building (cash, stock, price, daily
+   books). Public employers are paid by the treasury. Wages are paid per shift by the
+   employer, with income tax withheld.
+3. **Goods and supply.** Farms and factories produce per worked shift. Warehouses buy from
+   producers and supply shops and restaurants. Shortfalls are imported at a premium. Food
+   surplus is sold to neighbouring towns: `Trade` carries an invoice and `Payment` returns
+   the money.
+4. **Prices.** Daily integer rules based on stock against target, within bounds. Sales tax
+   goes to the treasury.
+5. **Housing and rent.** Ownership per household, rent by zone and building, paid on the
+   1st of each month. Arrears are journaled; evictions come in Phase 3.
+6. **Labour market.** Vacancies, daily matching of job seekers, layoffs when cash runs
+   out, bankruptcy, and reopening with an investor's savings.
+7. **Town hall.** Income and sales tax, pensions and benefits, public wages, maintenance,
+   and a tax rate that adjusts to the budget.
+8. **Snapshot format v2** with the first real migration (v1 worlds keep their people and
+   gain an economy).
+9. **UI.** Firm cards (price, stock, staff, profit), rent and ownership on person cards,
+   an economy section with 60-day charts, economic news.
+10. **Visual polish.** Real land around regions, roof-less cutaway interiors with floor
+    slabs, furniture, and households on their own floor.
 
 ## Phase 3 — Life cycle
 

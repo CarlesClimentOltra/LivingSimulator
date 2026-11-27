@@ -59,7 +59,7 @@ export type FromWorker =
   | { type: 'error'; message: string };
 
 /** Agent array layout (see livingsim-core/src/render.rs). */
-export const AGENT_STRIDE = 7;
+export const AGENT_STRIDE = 8;
 export const A_ACT = 0;
 export const A_PLACE = 1;
 export const A_FROM = 2;
@@ -67,6 +67,7 @@ export const A_TO = 3;
 export const A_DEPART = 4;
 export const A_UNTIL = 5;
 export const A_INFO = 6;
+export const A_HOUSEHOLD = 7;
 export const R_TRAVEL = 0xfffe;
 export const R_AWAY = 0xfffd;
 export const R_NONE = 0xffff;

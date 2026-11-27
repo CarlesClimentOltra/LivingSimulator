@@ -49,6 +49,18 @@ Names must always be invented. Never add real people's names, brands or real pla
 
 Changing data changes the simulation. Read "Updating the golden hash" below.
 
+### Economy rules (Phase 2)
+
+- Money is `i64` cents (US dollars). **Never** change a balance directly: use
+  `Region::transfer(from, to, amount)`. The `money_is_conserved` test fails if money is
+  created or destroyed.
+- Money that enters or leaves the region goes through the external accounts
+  `Account::World` (rest of the world) or `Account::OtherRegions` (other towns, via
+  messages).
+- Business behaviour is tuned in `data/economy.ron` and the `firm` field of
+  `data/buildings.ron`. To check a change, run
+  `cargo run --release -p livingsim-core --example economy -- 30`.
+
 ## Determinism: what you must not break
 
 Every browser replays the same simulation that the runner computed. A single
