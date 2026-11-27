@@ -259,6 +259,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             wage_per_shift_cents: p.wage_per_shift_cents,
             schedules: sch,
             min_age: p.min_age,
+            education: p.education.min(3),
         });
     }
 
@@ -431,6 +432,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             raw::Place::Home => Place::Home,
             raw::Place::Workplace => Place::Workplace,
             raw::Place::OtherRegion => Place::OtherRegion,
+            raw::Place::FriendHome => Place::FriendHome,
             raw::Place::Tag(t) => match tags.iter().position(|x| x == t) {
                 Some(i) => Place::Tag(i as u16),
                 None => {
@@ -754,6 +756,27 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
         })
         .collect();
 
+    let demography = match &raw.demography {
+        Some(d) => {
+            if d.mortality_by_decade.is_empty()
+                || d.illness_by_decade.is_empty()
+                || d.severe_by_decade.is_empty()
+            {
+                ctx.err("demography.ron: rates by decade must not be empty");
+            }
+            if d.fertility_by_age.is_empty() {
+                ctx.err("demography.ron: fertility_by_age must not be empty");
+            }
+            d.clone()
+        }
+        None => {
+            ctx.err("demography.ron is missing");
+            return Err(ContentError {
+                problems: ctx.problems,
+            });
+        }
+    };
+
     if ctx.problems.is_empty() {
         Ok(Content {
             needs,
@@ -769,6 +792,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             goods,
             crimes,
             technologies,
+            demography,
         })
     } else {
         Err(ContentError {

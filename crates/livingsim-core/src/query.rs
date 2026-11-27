@@ -51,6 +51,11 @@ pub struct AgentCard {
     pub rent_arrears: u8,
     /// Businesses owned by this person.
     pub businesses: Vec<String>,
+    pub education: String,
+    pub relationship: String,
+    pub health: String,
+    /// Extra life situation: pregnancy, parental leave, commuting, adoption…
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -129,6 +134,26 @@ pub struct RegionStats {
     pub wages_yesterday_cents: i64,
     pub events_total: u64,
     pub economy: EconomyStats,
+    pub demography: DemographyStats,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct DemographyStats {
+    /// Population by 5-year band (0–4 … 90+): (men, women).
+    pub pyramid: Vec<(u32, u32)>,
+    pub average_age: u32,
+    pub births_30d: u32,
+    pub deaths_30d: u32,
+    pub marriages_30d: u32,
+    pub arrivals_30d: u32,
+    pub departures_30d: u32,
+    pub ill: u32,
+    pub pregnant: u32,
+    pub couples: u32,
+    pub commuters_out: u32,
+    pub commuters_in: u32,
+    pub university_graduates: u32,
+    pub history: Vec<crate::systems::demography::DemoSample>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -241,8 +266,28 @@ impl Region {
         let tpl = &c.text.journal[kind as usize];
         let place = match kind {
             JournalKind::LeftForRegion | JournalKind::BackFromRegion => self.region_label(arg),
+            JournalKind::CommuteJob => "a firm".into(),
+            JournalKind::FamilyDeath => {
+                let cem = content()
+                    .tag("cemetery")
+                    .and_then(|t| self.buildings.with_tag(t).first().copied());
+                cem.map(|b| self.building_name(b))
+                    .unwrap_or_else(|| "the regional cemetery".into())
+            }
             _ => self.building_name(subject),
         };
+        let city = match kind {
+            JournalKind::CommuteJob | JournalKind::WorkedAway | JournalKind::MovedTown => {
+                self.region_label(arg)
+            }
+            _ => self.name().to_string(),
+        };
+        let person = if self.resident(subject) {
+            self.full_name(subject)
+        } else {
+            "someone".into()
+        };
+        let first = self.names.get(subject).to_string();
         let amount = match kind {
             JournalKind::Shopped => format_money(arg as i64 * 100),
             _ => format_money(subject as i64),
@@ -256,7 +301,9 @@ impl Region {
             .replace("{amount}", &amount)
             .replace("{activity}", &activity)
             .replace("{n}", &arg.to_string())
-            .replace("{city}", self.name())
+            .replace("{city}", &city)
+            .replace("{person}", &person)
+            .replace("{first}", &first)
     }
 
     pub fn agent_card(&self, a: AgentId) -> Option<AgentCard> {
@@ -271,7 +318,15 @@ impl Region {
         let sched = self.agents.schedule[i];
         let prof = self.agents.profession[i];
         let work = self.agents.work[i];
-        let occupation = if visitor {
+        let occupation = if let Some(j) = self.remote_job(a) {
+            let p = self.agents.profession[i];
+            let name = if p != u16::MAX {
+                c.professions[p as usize].name.clone()
+            } else {
+                "Worker".into()
+            };
+            format!("{name} (in {})", self.region_label(j.region))
+        } else if visitor {
             let from = self
                 .visitors
                 .get(&a)
@@ -310,13 +365,78 @@ impl Region {
                 });
             }
         };
-        rel(self.agents.partner[i], "partner");
-        rel(self.agents.parent_a[i], "parent");
-        rel(self.agents.parent_b[i], "parent");
+        let female = |x: u32| self.agents.flags[x as usize] & flags::FEMALE != 0;
+        let married = self.systems.demography.married(a);
+        let p = self.agents.partner[i];
+        if p != NONE && (p as usize) < self.agents.len() {
+            let r = if !married {
+                "partner"
+            } else if female(p) {
+                "wife"
+            } else {
+                "husband"
+            };
+            rel(p, r);
+        }
+        let parents = [self.agents.parent_a[i], self.agents.parent_b[i]];
+        for &q in &parents {
+            if q != NONE && (q as usize) < self.agents.len() {
+                rel(q, if female(q) { "mother" } else { "father" });
+            }
+        }
         if !visitor {
+            let child_of = |k: u32, x: u32| {
+                self.agents.parent_a[k as usize] == x || self.agents.parent_b[k as usize] == x
+            };
+            let kids: Vec<u32> = (0..self.agents.len() as u32)
+                .filter(|k| self.agents.alive(*k) && child_of(*k, a))
+                .collect();
+            for &k in &kids {
+                let adopted = self.systems.demography.adopted(k);
+                let r = match (female(k), adopted) {
+                    (true, false) => "daughter",
+                    (false, false) => "son",
+                    (true, true) => "adopted daughter",
+                    (false, true) => "adopted son",
+                };
+                rel(k, r);
+            }
             for k in 0..self.agents.len() as u32 {
-                if self.agents.parent_a[k as usize] == a || self.agents.parent_b[k as usize] == a {
-                    rel(k, "child");
+                if k == a || !self.agents.alive(k) {
+                    continue;
+                }
+                if parents.iter().any(|q| *q != NONE && child_of(k, *q)) {
+                    rel(k, if female(k) { "sister" } else { "brother" });
+                }
+                if kids.iter().any(|c| child_of(k, *c)) {
+                    rel(
+                        k,
+                        if female(k) {
+                            "granddaughter"
+                        } else {
+                            "grandson"
+                        },
+                    );
+                }
+            }
+            for &q in &parents {
+                if q == NONE || (q as usize) >= self.agents.len() {
+                    continue;
+                }
+                for g in [
+                    self.agents.parent_a[q as usize],
+                    self.agents.parent_b[q as usize],
+                ] {
+                    if g != NONE && (g as usize) < self.agents.len() {
+                        rel(
+                            g,
+                            if female(g) {
+                                "grandmother"
+                            } else {
+                                "grandfather"
+                            },
+                        );
+                    }
                 }
             }
             let hh = self.agents.household[i];
@@ -360,6 +480,59 @@ impl Region {
             .filter(|f| f.owner == a && f.open)
             .map(|f| self.building_name(f.building))
             .collect();
+        let d = &self.systems.demography;
+        let education = match d.education_of(a) {
+            0 => "No formal education yet",
+            1 => "Primary school",
+            2 => "Secondary school",
+            _ => "University degree",
+        }
+        .to_string();
+        let relationship = {
+            let p = self.agents.partner[i];
+            if p != NONE && self.resident(p) {
+                let together = self.agents.household[p as usize] == self.agents.household[i];
+                if married {
+                    format!("Married to {}", self.full_name(p))
+                } else if together {
+                    format!("Lives with {}", self.full_name(p))
+                } else {
+                    format!("Going out with {}", self.full_name(p))
+                }
+            } else if age_years(self.agents.birth[i], t) >= 18 {
+                "Single".into()
+            } else {
+                "—".into()
+            }
+        };
+        let health = match self.is_ill(a) {
+            Some(x) if x.severe => "In hospital".to_string(),
+            Some(_) => "Ill, resting at home".to_string(),
+            None => "Healthy".to_string(),
+        };
+        let mut notes = Vec::new();
+        if d.pregnancies.contains_key(&a) {
+            notes.push("Expecting a baby".to_string());
+        }
+        if self.on_leave(a, t) {
+            notes.push("On parental leave".to_string());
+        }
+        if let Some(j) = self.remote_job(a) {
+            notes.push(format!(
+                "Commutes to {} in {}",
+                j.place,
+                self.region_label(j.region)
+            ));
+        }
+        if d.adopted(a) {
+            notes.push("Adopted".to_string());
+        }
+        if d.dflags
+            .get(i)
+            .is_some_and(|f| f & crate::systems::demography::dflags::ORPHAN != 0)
+        {
+            notes.push("Waiting for a family to adopt them".to_string());
+        }
         Some(AgentCard {
             id: a,
             region: self.id,
@@ -373,7 +546,9 @@ impl Region {
                 self.building_name(self.agents.home[i])
             },
             occupation,
-            workplace: if work != NONE {
+            workplace: if let Some(j) = self.remote_job(a) {
+                format!("{} ({})", j.place, self.region_label(j.region))
+            } else if work != NONE {
                 self.building_name(work)
             } else {
                 "—".into()
@@ -389,6 +564,10 @@ impl Region {
             rent_cents,
             rent_arrears,
             businesses,
+            education,
+            relationship,
+            health,
+            notes,
         })
     }
 
@@ -420,6 +599,7 @@ impl Region {
             wages_yesterday_cents: self.yesterday.wages_paid_cents,
             events_total: self.events,
             economy: self.economy_stats(),
+            demography: self.demography_stats(),
         };
         let mut by_act = vec![0u32; c.activities.len()];
         let mut needs = [0u64; livingsim_content::NEED_COUNT];
@@ -490,7 +670,22 @@ impl Region {
                     | NewsKind::ShelvesEmpty
                     | NewsKind::Bankruptcy
                     | NewsKind::Reopened => self.building_name(n.subject),
+                    NewsKind::Obituary => {
+                        format!("{} {}", self.names.get(n.subject), self.names.get(n.n >> 8))
+                    }
+                    NewsKind::Centenarian => {
+                        format!("{} {}", self.names.get(n.subject), self.names.get(n.n))
+                    }
+                    NewsKind::Wedding => {
+                        format!("{} and {}", self.names.get(n.subject), self.names.get(n.n))
+                    }
+                    NewsKind::Migration => n.subject.to_string(),
+                    NewsKind::Commuters => self.region_label(n.subject as u16),
                     _ => self.name().to_string(),
+                };
+                let shown_n = match kind {
+                    NewsKind::Obituary => n.n & 0xFF,
+                    _ => n.n,
                 };
                 let amount = match kind {
                     NewsKind::Budget => format_money(n.n as i64 * 100),
@@ -499,7 +694,7 @@ impl Region {
                 let f = |s: &str| {
                     s.replace("{place}", &place)
                         .replace("{amount}", &amount)
-                        .replace("{n}", &n.n.to_string())
+                        .replace("{n}", &shown_n.to_string())
                         .replace("{city}", self.name())
                 };
                 Some(NewsLine {
@@ -647,6 +842,52 @@ impl Region {
             hires: e.yesterday.hires,
             layoffs: e.yesterday.layoffs,
             history: e.history.clone(),
+        }
+    }
+
+    pub fn demography_stats(&self) -> DemographyStats {
+        let d = &self.systems.demography;
+        let t = self.tick;
+        let mut pyramid = vec![(0u32, 0u32); 19];
+        let (mut ages, mut n, mut couples, mut grads) = (0u64, 0u64, 0u32, 0u32);
+        for a in 0..self.agents.len() as u32 {
+            if !self.resident(a) {
+                continue;
+            }
+            let age = age_years(self.agents.birth[a as usize], t);
+            let band = ((age / 5) as usize).min(18);
+            if self.agents.flags[a as usize] & flags::FEMALE != 0 {
+                pyramid[band].1 += 1;
+            } else {
+                pyramid[band].0 += 1;
+            }
+            ages += age as u64;
+            n += 1;
+            if self.agents.partner[a as usize] != NONE && self.agents.partner[a as usize] > a {
+                couples += 1;
+            }
+            if d.education_of(a) >= 3 {
+                grads += 1;
+            }
+        }
+        let last = |f: fn(&crate::systems::demography::DemoSample) -> u32| {
+            d.history.iter().rev().take(30).map(f).sum()
+        };
+        DemographyStats {
+            pyramid,
+            average_age: (ages / n.max(1)) as u32,
+            births_30d: last(|s| s.births),
+            deaths_30d: last(|s| s.deaths),
+            marriages_30d: last(|s| s.marriages),
+            arrivals_30d: last(|s| s.immigrants),
+            departures_30d: last(|s| s.emigrants),
+            ill: d.illness.len() as u32,
+            pregnant: d.pregnancies.len() as u32,
+            couples,
+            commuters_out: d.remote_jobs.len() as u32,
+            commuters_in: d.remote_staff.len() as u32,
+            university_graduates: grads,
+            history: d.history.clone(),
         }
     }
 }

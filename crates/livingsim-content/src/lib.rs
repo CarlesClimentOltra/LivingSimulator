@@ -103,6 +103,10 @@ pub enum ActivityKind {
     Relax,
     /// Visit another region (city/town) for a few hours.
     VisitRegion,
+    /// Visit a friend at their home (Phase 3).
+    VisitFriend,
+    /// Rest while ill, at home or in hospital (Phase 3).
+    Recover,
 }
 
 /// Where an activity takes place.
@@ -114,6 +118,8 @@ pub enum Place {
     Tag(u16),
     /// Another region (only for [`ActivityKind::VisitRegion`]).
     OtherRegion,
+    /// The home of one of the agent's friends (only for [`ActivityKind::VisitFriend`]).
+    FriendHome,
 }
 
 /// Days of the week as a bit mask (bit 0 = Monday … bit 6 = Sunday).
@@ -209,6 +215,8 @@ pub struct ProfessionDef {
     /// Schedules used by jobs of this profession; jobs are distributed among them.
     pub schedules: Vec<u16>,
     pub min_age: u8,
+    /// Minimum education: 0 none, 1 primary, 2 secondary, 3 university.
+    pub education: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -349,10 +357,34 @@ pub enum JournalKind {
     LaidOff = 16,
     OpenedBusiness = 17,
     ReceivedRent = 18,
+    StartedDating = 19,
+    MovedInWith = 20,
+    Married = 21,
+    Divorced = 22,
+    BabyBorn = 23,
+    WasBorn = 24,
+    Adopted = 25,
+    WasAdopted = 26,
+    GotSick = 27,
+    Hospitalized = 28,
+    Recovered = 29,
+    FamilyDeath = 30,
+    Inherited = 31,
+    Retired = 32,
+    StartedSchool = 33,
+    Graduated = 34,
+    LeftHome = 35,
+    FamilyLeft = 36,
+    Immigrated = 37,
+    CommuteJob = 38,
+    WorkedAway = 39,
+    NewFriend = 40,
+    MovedTown = 41,
+    StartedUniversity = 42,
 }
 
 impl JournalKind {
-    pub const ALL: [JournalKind; 19] = [
+    pub const ALL: [JournalKind; 43] = [
         JournalKind::WokeUp,
         JournalKind::WentTo,
         JournalKind::Started,
@@ -372,6 +404,30 @@ impl JournalKind {
         JournalKind::LaidOff,
         JournalKind::OpenedBusiness,
         JournalKind::ReceivedRent,
+        JournalKind::StartedDating,
+        JournalKind::MovedInWith,
+        JournalKind::Married,
+        JournalKind::Divorced,
+        JournalKind::BabyBorn,
+        JournalKind::WasBorn,
+        JournalKind::Adopted,
+        JournalKind::WasAdopted,
+        JournalKind::GotSick,
+        JournalKind::Hospitalized,
+        JournalKind::Recovered,
+        JournalKind::FamilyDeath,
+        JournalKind::Inherited,
+        JournalKind::Retired,
+        JournalKind::StartedSchool,
+        JournalKind::Graduated,
+        JournalKind::LeftHome,
+        JournalKind::FamilyLeft,
+        JournalKind::Immigrated,
+        JournalKind::CommuteJob,
+        JournalKind::WorkedAway,
+        JournalKind::NewFriend,
+        JournalKind::MovedTown,
+        JournalKind::StartedUniversity,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -394,6 +450,30 @@ impl JournalKind {
             JournalKind::LaidOff => "laid_off",
             JournalKind::OpenedBusiness => "opened_business",
             JournalKind::ReceivedRent => "received_rent",
+            JournalKind::StartedDating => "started_dating",
+            JournalKind::MovedInWith => "moved_in_with",
+            JournalKind::Married => "married",
+            JournalKind::Divorced => "divorced",
+            JournalKind::BabyBorn => "baby_born",
+            JournalKind::WasBorn => "was_born",
+            JournalKind::Adopted => "adopted",
+            JournalKind::WasAdopted => "was_adopted",
+            JournalKind::GotSick => "got_sick",
+            JournalKind::Hospitalized => "hospitalized",
+            JournalKind::Recovered => "recovered",
+            JournalKind::FamilyDeath => "family_death",
+            JournalKind::Inherited => "inherited",
+            JournalKind::Retired => "retired",
+            JournalKind::StartedSchool => "started_school",
+            JournalKind::Graduated => "graduated",
+            JournalKind::LeftHome => "left_home",
+            JournalKind::FamilyLeft => "family_left",
+            JournalKind::Immigrated => "immigrated",
+            JournalKind::CommuteJob => "commute_job",
+            JournalKind::WorkedAway => "worked_away",
+            JournalKind::NewFriend => "new_friend",
+            JournalKind::MovedTown => "moved_town",
+            JournalKind::StartedUniversity => "started_university",
         }
     }
     pub fn from_u16(v: u16) -> Option<JournalKind> {
@@ -419,10 +499,17 @@ pub enum NewsKind {
     Budget = 11,
     TaxChange = 12,
     FoodImports = 13,
+    Births = 14,
+    Obituary = 15,
+    Wedding = 16,
+    Centenarian = 17,
+    Census = 18,
+    Migration = 19,
+    Commuters = 20,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 14] = [
+    pub const ALL: [NewsKind; 21] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
@@ -437,6 +524,13 @@ impl NewsKind {
         NewsKind::Budget,
         NewsKind::TaxChange,
         NewsKind::FoodImports,
+        NewsKind::Births,
+        NewsKind::Obituary,
+        NewsKind::Wedding,
+        NewsKind::Centenarian,
+        NewsKind::Census,
+        NewsKind::Migration,
+        NewsKind::Commuters,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -454,6 +548,13 @@ impl NewsKind {
             NewsKind::Budget => "budget",
             NewsKind::TaxChange => "tax_change",
             NewsKind::FoodImports => "food_imports",
+            NewsKind::Births => "births",
+            NewsKind::Obituary => "obituary",
+            NewsKind::Wedding => "wedding",
+            NewsKind::Centenarian => "centenarian",
+            NewsKind::Census => "census",
+            NewsKind::Migration => "migration",
+            NewsKind::Commuters => "commuters",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -588,6 +689,55 @@ pub struct Content {
     pub goods: Vec<GoodDef>,
     pub crimes: Vec<CrimeDef>,
     pub technologies: Vec<TechDef>,
+    pub demography: DemographyDef,
+}
+
+/// Rates for births, deaths, couples and migration (`data/demography.ron`).
+/// "Annual ‰" values are probabilities per simulated year, in per mille.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DemographyDef {
+    /// Annual ‰ chance of dying, by decade of age (index 0 = 0–9 … last = and older).
+    pub mortality_by_decade: Vec<u32>,
+    /// Annual ‰ chance of falling ill, by decade of age.
+    pub illness_by_decade: Vec<u32>,
+    /// ‰ of illnesses that are severe (hospital), by decade of age.
+    pub severe_by_decade: Vec<u32>,
+    pub illness_days: (u16, u16),
+    /// While severely ill, the death rate is multiplied by this.
+    pub severe_mortality_factor: u32,
+    /// Annual ‰ chance of a pregnancy for a fertile cohabiting couple, by mother's age:
+    /// (max age, ‰).
+    pub fertility_by_age: Vec<(u8, u32)>,
+    pub max_children: u8,
+    pub pregnancy_days: u16,
+    pub parental_leave_days: u16,
+    /// Annual ‰ chance that a single adult (20–65) starts a relationship.
+    pub dating_permille: u32,
+    /// Days of dating before moving in together.
+    pub move_in_after_days: u16,
+    pub marriage_permille: u32,
+    pub divorce_permille: u32,
+    /// Annual ‰ chance that a childless couple (25–50) adopts.
+    pub adoption_permille: u32,
+    /// Annual ‰ chance that an adult child (22+) with a job leaves the family home.
+    pub leave_home_permille: u32,
+    /// Annual ‰ chance that a long-term job seeker leaves the region.
+    pub emigration_permille: u32,
+    /// Days without a job before someone considers leaving.
+    pub emigration_after_days: u16,
+    /// Annual ‰ chance, per free home, that a family moves in from outside the region.
+    pub immigration_permille: u32,
+    /// ‰ of adults attracted to the same sex, and to both sexes.
+    pub same_sex_permille: u32,
+    pub bisexual_permille: u32,
+    /// Annual ‰ chance of making a new friend (until the maximum is reached).
+    pub friendship_permille: u32,
+    pub retirement_age: u8,
+    /// ‰ of school leavers who go to university.
+    pub university_permille: u32,
+    pub university_years: u8,
+    /// Education mix of adults in a new world (‰ with primary, secondary, university).
+    pub initial_education_permille: (u32, u32, u32),
 }
 
 impl Content {

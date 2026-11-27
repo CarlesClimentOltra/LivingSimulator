@@ -17,7 +17,7 @@ use bincode::Options;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAGIC: &[u8; 4] = b"LSIM";
-pub const FORMAT_VERSION: u16 = 2;
+pub const FORMAT_VERSION: u16 = 3;
 pub const HEADER_LEN: usize = 4 + 2 + 32 + 1 + 2 + 4 + 32;
 
 #[repr(u8)]
@@ -176,18 +176,24 @@ pub fn migrate(from: u16, kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, Snaps
     if v == 0 || v > FORMAT_VERSION {
         return Err(SnapshotError::UnsupportedFormat(from));
     }
-    while v < FORMAT_VERSION {
+    // Each frozen layout upgrades straight to the current one.
+    if v < FORMAT_VERSION {
         p = match (v, kind) {
             (1, Kind::Region) => {
                 to_bytes(&from_bytes::<crate::snapshot_v1::RegionV1>(&p)?.upgrade())
             }
             (1, Kind::World) => to_bytes(&from_bytes::<crate::snapshot_v1::WorldV1>(&p)?.upgrade()),
-            // Message logs did not change (new message kinds were appended).
-            (1, Kind::MessageLog) => p,
+            (2, Kind::Region) => {
+                to_bytes(&from_bytes::<crate::snapshot_v1::RegionV2>(&p)?.upgrade())
+            }
+            (2, Kind::World) => to_bytes(&from_bytes::<crate::snapshot_v1::WorldV2>(&p)?.upgrade()),
+            // Message logs only gained new message kinds (appended).
+            (_, Kind::MessageLog) => p,
             _ => return Err(SnapshotError::UnsupportedFormat(from)),
         };
-        v += 1;
+        v = FORMAT_VERSION;
     }
+    let _ = v;
     Ok(p)
 }
 

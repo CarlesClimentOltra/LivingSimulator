@@ -5,8 +5,10 @@
 **Una ciudad compartida que vive sola.** Living Simulator es una simulación de vida
 open source con gráficos low-poly que funciona en el navegador. Unos 10.000 habitantes
 trabajan, van al colegio, compran, comen fuera, ven la tele, duermen, pagan el alquiler
-y visitan el pueblo de al lado. Las empresas contratan, despiden y a veces quiebran, y el
-ayuntamiento cobra impuestos. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
+y visitan el pueblo de al lado. Hacen amigos, se enamoran, se casan, tienen o adoptan
+hijos, envejecen, enferman y acaban muriendo, y la gente del pueblo va a trabajar a la
+ciudad. Las empresas contratan, despiden y a veces quiebran, y el ayuntamiento cobra
+impuestos. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
 observas.** Todos los visitantes ven la misma ciudad en el mismo momento, y sigue viviendo
 aunque nadie la mire.
 

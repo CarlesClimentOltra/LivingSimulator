@@ -272,6 +272,16 @@ impl Region {
                     seller_firm,
                 } => self.receive_sale(m.src, *seller_firm, *qty, *unit_price),
                 Body::Payment { firm, amount } => self.receive_payment(*firm, *amount),
+                Body::Movers(movers) => self.receive_movers(m.src, movers),
+                Body::JobOffers(offers) => self.receive_job_offers(m.src, offers),
+                Body::JobAccept {
+                    firm,
+                    agent,
+                    profession,
+                    schedule,
+                } => self.receive_job_accept(m.src, *firm, *agent, *profession, *schedule),
+                Body::JobEnded { firm, agent } => self.receive_job_ended(m.src, *firm, *agent),
+                Body::RemoteWage { agent, net } => self.receive_remote_wage(*agent, *net),
                 // Later phases.
                 Body::Migration { .. }
                 | Body::MaterialShipment { .. }
@@ -354,7 +364,9 @@ impl Region {
             }
         }
         self.write_news(t);
+        self.demography_daily(t);
         self.economy_daily(t);
+        self.commuting_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),

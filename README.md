@@ -4,8 +4,10 @@
 
 **A shared city that lives on its own.** Living Simulator is an open-source, low-poly
 life simulation that runs in your browser. Around 10,000 inhabitants work, go to
-school, shop, eat out, watch TV, sleep, pay rent and visit the next town. Businesses hire,
-fire and sometimes go bankrupt, and the town hall collects taxes. They follow their own
+school, shop, eat out, watch TV, sleep, pay rent and visit the next town. They make
+friends, fall in love, marry, have or adopt children, grow old, fall ill and eventually die,
+and villagers commute to jobs in the city. Businesses hire, fire and sometimes go bankrupt,
+and the town hall collects taxes. They follow their own
 needs and daily agendas, and nobody controls them. **You can only watch.** Every visitor
 sees the same city at the same moment, and it keeps living when nobody is looking.
 
@@ -26,10 +28,12 @@ sees the same city at the same moment, and it keeps living when nobody is lookin
 
 - Drag to move, scroll or pinch to zoom. Zoom in close and the buildings turn see-through,
   so you can watch people sleeping, working at their desks or watching TV.
-- Click anyone to open their **card**: name, age, family, job, needs, money and a
-  **diary** of their latest moments. Press *Follow* to keep the camera on them.
+- Click anyone to open their **card**: name, age, family tree, partner, education,
+  health, job, needs, money and a **diary** of their latest moments. Press *Follow* to keep the camera on them.
 - Click a building to see who is inside and, for a business, its owner, prices, stock,
   staff and yesterday's books.
+- Follow the population: a population pyramid, births, deaths, weddings, migration and
+  commuters.
 - Look at the economy: unemployment, the price of a meal, rents and the town budget, with
   charts of the last 60 days.
 - Read the **city stats** and the local **newspaper**, and switch between the city and

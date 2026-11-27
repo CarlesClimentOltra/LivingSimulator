@@ -289,6 +289,13 @@ impl Region {
             self.leave_for_region(a, t, plan.saturating_sub(t));
             return;
         }
+        // Commuters reach the highway exit and drive to their job in the other town.
+        if next == c.work_activity && self.remote_job(a).is_some() {
+            let plan = self.agents.plan_until[i];
+            if self.commute_away(a, t, plan) {
+                return;
+            }
+        }
         let plan = self.agents.plan_until[i];
         let min_left = if matches!(
             def.kind,
@@ -412,11 +419,30 @@ impl Region {
         let work = self.agents.work[i];
         let mut free_until = t + 1440;
 
-        // 1. Obligations (work, school).
-        if work != NONE {
+        // 0. Ill: rest at home, or in hospital when severe.
+        if let Some(ill) = self.is_ill(a).cloned() {
+            let hospital = if ill.severe {
+                c.recover_hospital.and_then(|_| self.pick_hospital(a))
+            } else {
+                None
+            };
+            let until = ill.until.min(t + 12 * 60).max(t + 30);
+            match (hospital, c.recover_hospital) {
+                (Some(h), Some(act)) => self.go(a, t, h, act, until),
+                _ => self.go(a, t, home, c.recover_home, until),
+            }
+            return;
+        }
+
+        // 1. Obligations (work, school), unless on parental leave.
+        if work != NONE && !self.on_leave(a, t) {
             if let Some((s, e)) = next_block(sched, t) {
                 let act = if self.agents.profession[i] == u16::MAX {
-                    c.school_activity
+                    if crate::time::age_years(self.agents.birth[i], t) < 6 {
+                        c.daycare_activity
+                    } else {
+                        c.school_activity
+                    }
                 } else {
                     c.work_activity
                 };
@@ -576,6 +602,15 @@ impl Region {
                     Some(b) => b,
                     None => continue,
                 },
+                Place::FriendHome => {
+                    if visitor {
+                        continue;
+                    }
+                    match self.friend_home(a, t) {
+                        Some(h) => h,
+                        None => continue,
+                    }
+                }
                 Place::OtherRegion => {
                     if visitor
                         || self.gateways.is_empty()
@@ -705,6 +740,19 @@ impl Region {
         }
         best.filter(|(s, _, _, _)| *s > 0)
             .map(|(_, ai, dest, end)| (ai, dest, end))
+    }
+}
+
+impl Region {
+    /// Nearest hospital to the agent's home.
+    fn pick_hospital(&self, a: AgentId) -> Option<BuildingId> {
+        let tag = content().tag("hospital")?;
+        let home = self.agents.home[a as usize];
+        self.buildings
+            .with_tag(tag)
+            .iter()
+            .copied()
+            .min_by_key(|b| (self.manhattan(home, *b), *b))
     }
 }
 

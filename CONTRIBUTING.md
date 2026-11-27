@@ -61,6 +61,16 @@ Changing data changes the simulation. Read "Updating the golden hash" below.
   `data/buildings.ron`. To check a change, run
   `cargo run --release -p livingsim-core --example economy -- 30`.
 
+### Life cycle rules (Phase 3)
+
+- Birth, death, couple, migration and illness rates live in `data/demography.ron`. Check a
+  change with `cargo run --release -p livingsim-core --example lifecycle -- 60`.
+- People leave a region only through `remove_person`. It clears family links and friends,
+  passes on money, businesses and rented-out homes, and notifies other towns. Never free an
+  agent slot any other way.
+- Only a woman of fertile age with a male partner can conceive; any couple can adopt. The
+  `life_goes_on_and_money_is_conserved` test checks this.
+
 ## Determinism: what you must not break
 
 Every browser replays the same simulation that the runner computed. A single

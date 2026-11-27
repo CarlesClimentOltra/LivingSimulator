@@ -50,6 +50,12 @@ pub struct Catalog {
     pub schedule_university: u16,
     pub schedule_retired: u16,
     pub schedule_unemployed: u16,
+    pub schedule_daycare: u16,
+    /// Activity of toddlers at daycare.
+    pub daycare_activity: u16,
+    /// Resting while ill at home / in hospital.
+    pub recover_home: u16,
+    pub recover_hospital: Option<u16>,
     pub gateway_building: Option<u16>,
     /// Base decay per hour for each need.
     pub decay: [i32; livingsim_content::NEED_COUNT],
@@ -86,7 +92,10 @@ fn build(content: Content) -> Catalog {
         .filter(|(_, a)| {
             !matches!(
                 a.kind,
-                ActivityKind::Sleep | ActivityKind::Work | ActivityKind::School
+                ActivityKind::Sleep
+                    | ActivityKind::Work
+                    | ActivityKind::School
+                    | ActivityKind::Recover
             )
         })
         .map(|(i, _)| i as u16)
@@ -130,6 +139,24 @@ fn build(content: Content) -> Catalog {
         schedule_university: s("student_university"),
         schedule_retired: s("retired"),
         schedule_unemployed: s("unemployed"),
+        schedule_daycare: content.schedule("daycare_child").unwrap_or(s("toddler")),
+        daycare_activity: content
+            .activities
+            .iter()
+            .position(|a| a.kind == ActivityKind::School && a.max_age < 6)
+            .map(|i| i as u16)
+            .unwrap_or(first(ActivityKind::School)),
+        recover_home: content
+            .activities
+            .iter()
+            .position(|a| a.kind == ActivityKind::Recover && a.place == Place::Home)
+            .map(|i| i as u16)
+            .unwrap_or(first(ActivityKind::Sleep)),
+        recover_hospital: content
+            .activities
+            .iter()
+            .position(|a| a.kind == ActivityKind::Recover && matches!(a.place, Place::Tag(_)))
+            .map(|i| i as u16),
         gateway_building: content.building("highway_exit"),
         free_activities,
         decay,

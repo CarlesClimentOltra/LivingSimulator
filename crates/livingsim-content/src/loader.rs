@@ -58,6 +58,7 @@ pub fn load_dir(dir: &Path) -> Result<Content, ContentError> {
         goods: read(&dir.join("goods.ron"), &mut p).unwrap_or_default(),
         crimes: read(&dir.join("crimes.ron"), &mut p).unwrap_or_default(),
         technologies: read(&dir.join("technologies.ron"), &mut p).unwrap_or_default(),
+        demography: read(&dir.join("demography.ron"), &mut p),
     };
     // Every names/style_*.ron is a name style, in file-name order.
     let mut style_files: Vec<_> = data_files(dir)
