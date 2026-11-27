@@ -7,6 +7,7 @@ import {
   A_ACT,
   A_DEPART,
   A_FROM,
+  A_HOUSEHOLD,
   A_INFO,
   A_PLACE,
   A_TO,
@@ -21,7 +22,7 @@ import {
   routeKey,
 } from '../sim/protocol';
 import type { CityRegion, Content } from './city';
-import { FLOOR_H } from './city';
+import { BASE_H, FLOOR_H } from './city';
 
 interface Route {
   pts: Float32Array; // world x, z pairs
@@ -53,6 +54,8 @@ export class People {
   private cars: THREE.InstancedMesh;
   private cabins: THREE.InstancedMesh;
   private points: THREE.Points;
+  /** Beds, sofas, TVs and desks for people seen inside buildings. */
+  private furniture: THREE.InstancedMesh;
   private pointPos: Float32Array;
   /** body instance -> region << 24 | agent */
   bodyOwner: Int32Array;
@@ -84,6 +87,11 @@ export class People {
       im.count = 0;
       this.group.add(im);
     }
+    this.furniture = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), capacity * 2);
+    this.furniture.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.furniture.frustumCulled = false;
+    this.furniture.count = 0;
+    this.group.add(this.furniture);
     this.pointPos = new Float32Array(capacity * 3);
     const pg = new THREE.BufferGeometry();
     pg.setAttribute('position', new THREE.BufferAttribute(this.pointPos, 3).setUsage(THREE.DynamicDrawUsage));
@@ -139,17 +147,28 @@ export class People {
     return Math.atan2(dx, dz);
   }
 
-  private buildingSpot(reg: CityRegion, b: number, id: number, out: THREE.Vector3, floors: number): number {
+  /**
+   * Where someone stands inside (or in the grounds of) a building. Members of a household
+   * share a floor and an apartment; everyone else is spread over the floors.
+   */
+  private buildingSpot(reg: CityRegion, b: number, id: number, household: number, out: THREE.Vector3, floors: number, dwellings: number): number {
     const o = b * BUILDING_STRIDE;
     const outdoor = reg.outdoor[b] === 1;
     const [x, y, w, d] = outdoor
       ? [reg.buildings[o + 5], reg.buildings[o + 6], reg.buildings[o + 7], reg.buildings[o + 8]]
       : [reg.buildings[o + 1], reg.buildings[o + 2], reg.buildings[o + 3], reg.buildings[o + 4]];
-    const fx = 0.15 + hash(id, 1) * 0.7;
-    const fz = 0.15 + hash(id, 2) * 0.7;
-    const floor = outdoor ? 0 : Math.floor(hash(id, 3) * floors);
-    out.set(reg.origin[0] + x + fx * w, 0.15 + floor * FLOOR_H, reg.origin[1] + y + fz * d);
-    return hash(id, 4) * Math.PI * 2;
+    const home = dwellings > 0 && household !== NONE;
+    const key = home ? household : id;
+    let fx = 0.2 + hash(key, 1) * 0.6;
+    let fz = 0.2 + hash(key, 2) * 0.6;
+    if (home) {
+      // Family members close together inside their flat.
+      fx = Math.min(0.9, Math.max(0.1, fx + (hash(id, 5) - 0.5) * 0.25));
+      fz = Math.min(0.9, Math.max(0.1, fz + (hash(id, 6) - 0.5) * 0.25));
+    }
+    const floor = outdoor ? 0 : Math.floor(hash(key, 3) * floors);
+    out.set(reg.origin[0] + x + fx * w, (outdoor ? 0 : BASE_H + 0.035) + floor * FLOOR_H, reg.origin[1] + y + fz * d);
+    return Math.floor(hash(key, 4) * 4) * (Math.PI / 2);
   }
 
   /**
@@ -167,6 +186,7 @@ export class People {
     let ni = 0;
     let ci = 0;
     let pi = 0;
+    let fi = 0;
     const lying = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
     this.lastPos.clear();
     this.regions.forEach((reg, ri) => {
@@ -204,7 +224,8 @@ export class People {
             const kind = this.kindOf[act] ?? '';
             pose = kind === 'Sleep' ? 2 : kind === 'Work' || kind === 'School' || kind === 'Relax' || kind === 'EatHome' || kind === 'EatOut' ? 1 : 0;
           }
-          yaw = this.buildingSpot(reg, place, id, pos, def.floors);
+          yaw = this.buildingSpot(reg, place, id, a[i + A_HOUSEHOLD], pos, def.floors, def.dwellings);
+          if (pose > 0 || (!outdoor && this.interiors)) fi = this.addFurniture(fi, pose, this.kindOf[act] ?? '', pos, yaw, a[i + A_HOUSEHOLD]);
         }
         const key = (ri << 24) | id;
         this.lastPos.set(key, pos.clone());
@@ -232,7 +253,7 @@ export class People {
         if (walking) pos.y += Math.abs(Math.sin(realMs / 110 + id)) * 0.04;
         if (pose === 2) {
           q.setFromAxisAngle(up, yaw).multiply(lying);
-          pos.y += 0.08;
+          pos.y += 0.2;
         } else {
           q.setFromAxisAngle(up, yaw);
         }
@@ -255,9 +276,42 @@ export class People {
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
     }
+    this.furniture.count = fi;
+    this.furniture.instanceMatrix.needsUpdate = true;
+    if (this.furniture.instanceColor) this.furniture.instanceColor.needsUpdate = true;
     this.points.visible = far;
     this.points.geometry.setDrawRange(0, pi);
     (this.points.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+  }
+
+  /** Furniture under a person seen inside: bed, sofa + TV, desk + screen, table. */
+  private addFurniture(fi: number, pose: number, kind: string, pos: THREE.Vector3, yaw: number, household: number): number {
+    const cap = (this.furniture.instanceMatrix.array as Float32Array).length / 16 - 2;
+    if (fi >= cap || pose === 0) return fi;
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    const col = new THREE.Color();
+    const put = (dx: number, dz: number, y: number, sx: number, sy: number, sz: number, color: number) => {
+      const off = new THREE.Vector3(dx, 0, dz).applyQuaternion(q);
+      m.compose(new THREE.Vector3(pos.x + off.x, y, pos.z + off.z), q, new THREE.Vector3(sx, sy, sz));
+      this.furniture.setMatrixAt(fi, m);
+      this.furniture.setColorAt(fi, col.setHex(color));
+      fi++;
+    };
+    const y0 = pos.y;
+    if (kind === 'Sleep') {
+      put(0, 0, y0, 0.36, 0.14, 0.62, [0x90caf9, 0xf8bbd0, 0xc5e1a5, 0xffe082][household % 4]);
+      put(0, 0.27, y0 + 0.14, 0.3, 0.05, 0.1, 0xffffff); // pillow
+    } else if (kind === 'Relax') {
+      put(0, -0.04, y0, 0.46, 0.14, 0.2, 0x8d6e63); // sofa
+      put(0, 0.42, y0, 0.36, 0.26, 0.05, 0x212121); // TV
+    } else if (kind === 'Work' || kind === 'School') {
+      put(0, 0.2, y0, 0.44, 0.2, 0.24, 0xa1887f); // desk
+      put(0, 0.27, y0 + 0.2, 0.2, 0.13, 0.03, 0x37474f); // screen
+    } else {
+      put(0, 0.22, y0, 0.32, 0.18, 0.32, 0xbcaaa4); // table
+    }
+    return fi;
   }
 
   pick(ray: THREE.Raycaster): Pick | null {

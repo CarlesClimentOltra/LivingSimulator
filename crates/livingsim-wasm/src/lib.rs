@@ -156,17 +156,7 @@ impl Sim {
 
     pub fn building_card(&self, region: u16, b: u32) -> Result<String, JsError> {
         let r = &self.get(region)?.region;
-        if b as usize >= r.buildings.len() {
-            return Ok("null".into());
-        }
-        let def = &livingsim_core::content().buildings[r.buildings.def[b as usize] as usize];
-        let occ: Vec<_> = r
-            .occupants(b)
-            .into_iter()
-            .take(40)
-            .map(|a| serde_json::json!({"id": a, "name": r.full_name(a)}))
-            .collect();
-        Ok(serde_json::json!({"id": b, "name": r.building_name(b), "kind": def.name, "occupants": occ, "present": r.buildings.present.get(b as usize).copied().unwrap_or(0), "stock": r.buildings.stock[b as usize]}).to_string())
+        Ok(serde_json::to_string(&r.building_card(b)).unwrap())
     }
 
     pub fn stats(&self, region: u16) -> Result<String, JsError> {

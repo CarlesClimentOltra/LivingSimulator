@@ -12,7 +12,7 @@ export class Stage {
   readonly hemi = new THREE.HemisphereLight(0xdfefff, 0x6b8f4e, 1.2);
   /** World units visible vertically at zoom 1. */
   private readonly viewSize = 60;
-  private readonly offset = new THREE.Vector3(1, 1.15, 1).normalize().multiplyScalar(400);
+  private readonly offset = new THREE.Vector3(1, 1.15, 1).normalize().multiplyScalar(3000);
   private readonly daySky = new THREE.Color(0x9fd8ef);
   private readonly duskSky = new THREE.Color(0xf2a37b);
   private readonly nightSky = new THREE.Color(0x0e1a33);
@@ -25,7 +25,7 @@ export class Stage {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 2000);
+    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 9000);
     this.camera.zoom = 1.1;
     this.scene.add(this.hemi, this.sun, this.sun.target);
     this.scene.background = this.daySky.clone();

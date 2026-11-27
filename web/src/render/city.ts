@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { BUILDING_STRIDE, type RegionStatic } from '../sim/protocol';
 
 export const FLOOR_H = 0.42;
-const BASE_H = 0.15;
+export const BASE_H = 0.15;
 
 export interface BuildingDef {
   id: string;
@@ -205,6 +205,13 @@ export class City {
   bodyOwner: Int32Array = new Int32Array(0);
   private litAttr!: THREE.InstancedBufferAttribute;
   private bodyMat: THREE.MeshLambertMaterial;
+  private roofs: THREE.InstancedMesh[] = [];
+  /** Floor slabs shown in the cutaway view. */
+  private slabs!: THREE.InstancedMesh;
+  private slabCentre = new THREE.Vector3(1e9, 0, 1e9);
+  private slabRadius = 0;
+  private interiors = false;
+  private statics: RegionStatic[] = [];
   private expected: Float32Array = new Float32Array(0);
 
   constructor(private content: Content, night: { value: number }) {
@@ -298,8 +305,19 @@ export class City {
       im.computeBoundingSphere();
       this.group.add(im);
     }
+    this.roofs = [roofsG, roofsF];
+    this.statics = statics;
+    this.slabs = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshLambertMaterial({ color: 0xd7c4a3, transparent: true, opacity: 0.38, depthWrite: false }),
+      6000,
+    );
+    this.slabs.count = 0;
+    this.slabs.frustumCulled = false;
+    this.group.add(this.slabs);
     this.addTrees(trees);
     this.addHighways(statics);
+    this.addLand(statics);
   }
 
   private addTrees(trees: [number, number, number][]) {
@@ -346,12 +364,81 @@ export class City {
       strip.position.set((a.x + b.x) / 2, 0.01, (a.z + b.z) / 2);
       strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
       this.group.add(strip);
-      // Countryside under the highway.
-      const grass = new THREE.Mesh(new THREE.BoxGeometry(len, 0.01, 60), new THREE.MeshLambertMaterial({ color: 0x86c463 }));
-      grass.position.set(strip.position.x, -0.02, strip.position.z);
-      grass.rotation.y = strip.rotation.y;
-      this.group.add(grass);
     }
+  }
+
+  /**
+   * Land around the towns: a large field of farmland, meadows and bare earth with
+   * scattered woods, so that the world never looks like it floats in the sky. This land is
+   * where towns will expand (Phase 4).
+   */
+  private addLand(statics: RegionStatic[]) {
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    for (const s of statics) {
+      minX = Math.min(minX, s.info.origin[0]);
+      minZ = Math.min(minZ, s.info.origin[1]);
+      maxX = Math.max(maxX, s.info.origin[0] + s.info.width);
+      maxZ = Math.max(maxZ, s.info.origin[1] + s.info.height);
+    }
+    const margin = 2500;
+    const x0 = minX - margin, z0 = minZ - margin;
+    const w = maxX - minX + 2 * margin, d = maxZ - minZ + 2 * margin;
+    // A tiling texture of 8x8-tile parcels: meadow, crops, ploughed earth, darker grass.
+    const P = 64; // parcels per texture side
+    const px = 8; // pixels per parcel
+    const data = new Uint8Array(P * px * P * px * 4);
+    const palette: [number, number, number][] = [
+      [134, 196, 98], [140, 200, 102], [128, 190, 94], [136, 194, 100], [122, 184, 90], [130, 192, 96], // meadows
+      [200, 184, 112], [190, 172, 100], // crops
+      [160, 128, 88], // ploughed earth
+      [112, 170, 82], // rough grass
+    ];
+    for (let py = 0; py < P; py++) {
+      for (let pxl = 0; pxl < P; pxl++) {
+        const c = palette[Math.floor(hash(pxl, py, 41) * palette.length)];
+        const stripes = c[0] > 140 && c[1] < 190 && hash(pxl, py, 42) < 0.7;
+        for (let y = 0; y < px; y++) {
+          for (let x = 0; x < px; x++) {
+            const i = ((py * px + y) * P * px + pxl * px + x) * 4;
+            const edge = x === 0 || y === 0;
+            const k = stripes && y % 2 === 0 ? -12 : 0;
+            const n = (hash(pxl * px + x, py * px + y, 43) - 0.5) * 5;
+            data[i] = Math.max(0, Math.min(255, c[0] + k + n - (edge ? 18 : 0)));
+            data[i + 1] = Math.max(0, Math.min(255, c[1] + k + n - (edge ? 10 : 0)));
+            data[i + 2] = Math.max(0, Math.min(255, c[2] + k + n - (edge ? 14 : 0)));
+            data[i + 3] = 255;
+          }
+        }
+      }
+    }
+    const tex = new THREE.DataTexture(data, P * px, P * px, THREE.RGBAFormat);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.repeat.set(w / (P * 28), d / (P * 28));
+    tex.needsUpdate = true;
+    const g = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
+    const land = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex }));
+    land.position.set(x0 + w / 2, -0.04, z0 + d / 2);
+    this.group.add(land);
+    // Woods: clusters of trees in a band around the towns.
+    const trees: [number, number, number][] = [];
+    for (let i = 0; i < 260; i++) {
+      const cx = minX - 400 + hash(i, 1, 91) * (maxX - minX + 800);
+      const cz = minZ - 400 + hash(i, 2, 91) * (maxZ - minZ + 800);
+      const inside = statics.some((s) => cx > s.info.origin[0] - 6 && cx < s.info.origin[0] + s.info.width + 6 && cz > s.info.origin[1] - 6 && cz < s.info.origin[1] + s.info.height + 6);
+      if (inside) continue;
+      const n = 8 + Math.floor(hash(i, 3, 91) * 30);
+      const r = 4 + hash(i, 4, 91) * 10;
+      for (let k = 0; k < n; k++) {
+        const a = hash(i, k, 92) * Math.PI * 2;
+        const rr = Math.sqrt(hash(i, k, 93)) * r;
+        trees.push([cx + Math.cos(a) * rr, cz + Math.sin(a) * rr, hash(i, k, 94)]);
+      }
+    }
+    this.addTrees(trees);
   }
 
   /** Updates lit windows from occupancy (awake occupants per building). */
@@ -368,10 +455,51 @@ export class City {
     this.litAttr.needsUpdate = true;
   }
 
+  /**
+   * Cutaway view when zoomed in: roofs disappear, walls become glass-like and each storey
+   * gets a floor slab, so people can be seen on their own floor from above.
+   */
   setInteriors(on: boolean) {
+    if (on === this.interiors) return;
+    this.interiors = on;
     this.bodyMat.transparent = on;
-    this.bodyMat.opacity = on ? 0.28 : 1;
+    this.bodyMat.opacity = on ? 0.2 : 1;
     this.bodyMat.depthWrite = !on;
     this.bodyMat.needsUpdate = true;
+    for (const r of this.roofs) r.visible = !on;
+    this.slabs.visible = on;
+    if (!on) this.slabCentre.set(1e9, 0, 1e9);
+  }
+
+  /** Rebuilds floor slabs around the camera target when it has moved enough. */
+  updateInteriors(centre: THREE.Vector3, radius: number) {
+    if (!this.interiors) return;
+    if (this.slabCentre.distanceTo(centre) < radius * 0.25 && Math.abs(this.slabRadius - radius) < radius * 0.2) return;
+    this.slabCentre.copy(centre);
+    this.slabRadius = radius;
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const pos = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+    let n = 0;
+    const cap = (this.slabs.instanceMatrix.array as Float32Array).length / 16;
+    for (const s of this.statics) {
+      const [ox, oz] = s.info.origin;
+      for (let o = 0; o < s.buildings.length && n < cap; o += BUILDING_STRIDE) {
+        const def = this.content.buildings[s.buildings[o]];
+        if (def.roof === 'None') continue;
+        const [x, y, bw, bd] = [s.buildings[o + 1], s.buildings[o + 2], s.buildings[o + 3], s.buildings[o + 4]];
+        const cx = ox + x + bw / 2;
+        const cz = oz + y + bd / 2;
+        if (Math.abs(cx - centre.x) > radius || Math.abs(cz - centre.z) > radius) continue;
+        for (let f = 0; f < def.floors && n < cap; f++) {
+          pos.set(cx, BASE_H + f * FLOOR_H, cz);
+          m.compose(pos, q, scale.set(bw * 0.92, 0.035, bd * 0.92));
+          this.slabs.setMatrixAt(n++, m);
+        }
+      }
+    }
+    this.slabs.count = n;
+    this.slabs.instanceMatrix.needsUpdate = true;
   }
 }
