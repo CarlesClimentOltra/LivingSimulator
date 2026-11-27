@@ -705,13 +705,13 @@ fn populate(r: &mut Region, rng: &mut Rng, start: Tick) {
         // single 27, couple 24, family 30, single parent 7, retired couple 8, retired single 4
         match rng.weighted(&[27, 24, 30, 7, 8, 4]).unwrap() {
             0 => {
-                let age = adult_age(rng, 19, 64);
+                // Singles are mostly young adults.
+                let age = if rng.permille(650) { rng.range(19, 38) } else { rng.range(39, 64) };
                 let f = rng.permille(500);
                 new_agent(r, rng, hh, f, age, family, start);
             }
             k @ (1 | 4) => {
-                let (lo, hi) = if k == 4 { (66, 90) } else { (22, 64) };
-                let age = adult_age(rng, lo, hi);
+                let age = if k == 4 { adult_age(rng, 66, 90) } else { rng.range(22, 65) };
                 let a = new_agent(r, rng, hh, true, age, family, start);
                 let pa = (age + rng.range(-4, 5)).clamp(19, 95);
                 let b = new_agent(r, rng, hh, false, pa, family, start);
@@ -719,7 +719,7 @@ fn populate(r: &mut Region, rng: &mut Rng, start: Tick) {
                 r.agents.partner[b as usize] = a;
             }
             k @ (2 | 3) => {
-                let age = adult_age(rng, 27, 52);
+                let age = rng.range(24, 56);
                 let a = new_agent(r, rng, hh, true, age, family, start);
                 let mut b = NONE;
                 if k == 2 {
@@ -730,7 +730,8 @@ fn populate(r: &mut Region, rng: &mut Rng, start: Tick) {
                 }
                 let kids = rng.range(1, 3);
                 for _ in 0..kids {
-                    let kid_age = rng.range(0, (age - 20).clamp(0, 17));
+                    // Some grown-up children (18–25) still live at home.
+                    let kid_age = rng.range(0, (age - 20).clamp(0, 25));
                     let f = rng.permille(500);
                     let kid = new_agent(r, rng, hh, f, kid_age, family, start);
                     r.agents.parent_a[kid as usize] = a;
@@ -738,7 +739,7 @@ fn populate(r: &mut Region, rng: &mut Rng, start: Tick) {
                 }
             }
             _ => {
-                let age = adult_age(rng, 66, 92);
+                let age = rng.range(66, 92);
                 let f = rng.permille(580);
                 new_agent(r, rng, hh, f, age, family, start);
             }
