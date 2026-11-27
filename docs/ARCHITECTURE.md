@@ -701,3 +701,31 @@ changing code.
 - **Measured performance:** 10k agents run a simulated day in about 0.2 s natively and
   about 0.3 s in WASM (catch-up). 1M agents take about 6 s on 4 threads. There are about
   16 events per agent per day.
+
+## 17. Implementation notes (Phase 2: economy)
+
+- **Accounts.** Every movement of money is `Region::transfer(from, to, amount)` between
+  agents, firms, the treasury and two external accounts: `World` (imports, exports, bailouts
+  of bankrupt firms' debts) and `OtherRegions` (visitors' money, `Sale`/`Payment` messages).
+  Their sum is constant, which a test checks every simulated hour.
+- **Firms** (`systems/economy.rs`) live in `EconomyState.firms`, with one per building that
+  declares a `firm` in `/data`. Buildings that have jobs but no `firm` are public services
+  paid by the treasury. Wages are paid at the end of each shift, with income tax withheld.
+  Producers produce at the end of a shift. Offices and factories export.
+- **Daily (06:00):** roll the books, supply chain (farms → warehouses → shops and food
+  services; imports at a premium; surplus sold to the next town), prices, public spending,
+  labour market (layoffs, bankruptcies, reopenings by local investors, hiring), history,
+  news. **Monthly (day 1):** rent, property tax, dividends, tax policy, budget news.
+- **Labour market.** Private positions are calibrated to about 96% of the workforce when
+  the economy is created. Firms hire up to their positions while their 7-day smoothed profit
+  is positive. They lay off when losing money with more staff than their demand needs, and
+  go bankrupt after `bankruptcy_after_days` in the red. City unemployment settles around
+  8–10%.
+- **Housing** is a `Tenure` per household: owner, municipal company, real estate agency
+  (a firm) or private landlord (an agent).
+- **Snapshot format v2.** `snapshot_v1.rs` freezes the v1 layout. Migration copies every
+  field and runs `bootstrap_economy`, which is deterministic in the region seed, so the
+  running world keeps its people when it gains an economy. The runner's rebase uses this
+  path on deploy.
+- **Cost:** none measurable. The economy runs once a day per firm and at existing events.
+  10k agents still simulate a day in about 0.2 s.

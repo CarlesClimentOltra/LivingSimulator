@@ -4,8 +4,9 @@
 
 **Una ciudad compartida que vive sola.** Living Simulator es una simulación de vida
 open source con gráficos low-poly que funciona en el navegador. Unos 10.000 habitantes
-trabajan, van al colegio, compran, comen fuera, ven la tele, duermen y visitan el pueblo
-de al lado. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
+trabajan, van al colegio, compran, comen fuera, ven la tele, duermen, pagan el alquiler
+y visitan el pueblo de al lado. Las empresas contratan, despiden y a veces quiebran, y el
+ayuntamiento cobra impuestos. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
 observas.** Todos los visitantes ven la misma ciudad en el mismo momento, y sigue viviendo
 aunque nadie la mire.
 
@@ -30,7 +31,10 @@ aunque nadie la mire.
 - Haz clic en cualquier persona para abrir su **ficha**: nombre, edad, familia, empleo,
   necesidades, dinero y un **diario** con sus últimos momentos. Pulsa *Follow* para que la
   cámara la siga.
-- Haz clic en un edificio para ver quién está dentro.
+- Haz clic en un edificio para ver quién está dentro y, si es un negocio, su dueño,
+  precios, stock, plantilla y las cuentas de ayer.
+- Consulta la economía: paro, precio de una comida, alquileres y presupuesto municipal,
+  con gráficas de los últimos 60 días.
 - Consulta las **estadísticas** de la ciudad y el **periódico** local, y cambia entre la
   ciudad y el pueblo que hay al otro lado de la autopista.
 

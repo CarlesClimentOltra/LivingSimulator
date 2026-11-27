@@ -4,7 +4,8 @@
 
 **A shared city that lives on its own.** Living Simulator is an open-source, low-poly
 life simulation that runs in your browser. Around 10,000 inhabitants work, go to
-school, shop, eat out, watch TV, sleep and visit the next town. They follow their own
+school, shop, eat out, watch TV, sleep, pay rent and visit the next town. Businesses hire,
+fire and sometimes go bankrupt, and the town hall collects taxes. They follow their own
 needs and daily agendas, and nobody controls them. **You can only watch.** Every visitor
 sees the same city at the same moment, and it keeps living when nobody is looking.
 
@@ -27,7 +28,10 @@ sees the same city at the same moment, and it keeps living when nobody is lookin
   so you can watch people sleeping, working at their desks or watching TV.
 - Click anyone to open their **card**: name, age, family, job, needs, money and a
   **diary** of their latest moments. Press *Follow* to keep the camera on them.
-- Click a building to see who is inside.
+- Click a building to see who is inside and, for a business, its owner, prices, stock,
+  staff and yesterday's books.
+- Look at the economy: unemployment, the price of a meal, rents and the town budget, with
+  charts of the last 60 days.
 - Read the **city stats** and the local **newspaper**, and switch between the city and
   the village down the highway.
 
@@ -56,6 +60,10 @@ You cannot do anything else. Nothing you do can change the world.
   still get a result identical to the runner's.
 - The runner works **ahead of real time**, so a late or failed cron run changes nothing
   for visitors.
+- **The economy is a closed loop.** Money (US dollars, stored in cents) moves only
+  through transfers between people, firms, the town hall and two external accounts (the
+  rest of the world and other towns). A test checks that no money is ever created or
+  destroyed.
 - **Content lives in data.** Professions, buildings, activities, schedules, name
   syllables and newspaper templates are RON files in [`/data`](data/), and you can add
   more without touching the engine.
@@ -64,7 +72,7 @@ Read the full design in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ### Current numbers
 
-These are from the Phase 1 build, measured on a 4-core machine.
+These are from the Phase 2 build (with the economy), measured on a 4-core machine.
 
 | Benchmark | Result | Target |
 |---|---|---|
