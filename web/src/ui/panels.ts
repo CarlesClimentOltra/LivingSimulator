@@ -21,6 +21,40 @@ export interface AgentCard {
   rent_cents: number;
   rent_arrears: number;
   businesses: string[];
+  education: string;
+  relationship: string;
+  health: string;
+  notes: string[];
+}
+
+export interface DemoSample {
+  tick: number;
+  population: number;
+  births: number;
+  deaths: number;
+  marriages: number;
+  immigrants: number;
+  emigrants: number;
+  ill: number;
+  commuters_out: number;
+  commuters_in: number;
+}
+
+export interface DemographyStats {
+  pyramid: [number, number][];
+  average_age: number;
+  births_30d: number;
+  deaths_30d: number;
+  marriages_30d: number;
+  arrivals_30d: number;
+  departures_30d: number;
+  ill: number;
+  pregnant: number;
+  couples: number;
+  commuters_out: number;
+  commuters_in: number;
+  university_graduates: number;
+  history: DemoSample[];
 }
 
 export interface FirmInfo {
@@ -103,6 +137,7 @@ export interface Stats {
   shelves_empty_yesterday: number;
   wages_yesterday_cents: number;
   economy: EconomyStats;
+  demography: DemographyStats;
 }
 
 export interface NewsLine {
@@ -209,10 +244,14 @@ export function renderAgentCard(el: HTMLElement, c: AgentCard, onRelative: (id: 
       h('dt', {}, 'Work / school'), h('dd', {}, c.workplace),
       h('dt', {}, 'Agenda'), h('dd', {}, c.schedule),
       h('dt', {}, 'Money'), h('dd', {}, money(c.money_cents)),
+      h('dt', {}, 'Family'), h('dd', {}, c.relationship),
+      h('dt', {}, 'Education'), h('dd', {}, c.education),
+      h('dt', {}, 'Health'), h('dd', { class: c.health === 'Healthy' ? '' : 'neg' }, c.health),
       h('dt', {}, 'Housing'), h('dd', {}, c.housing + (c.rent_arrears > 0 ? ` (${c.rent_arrears} month${c.rent_arrears > 1 ? 's' : ''} behind)` : '')),
       c.businesses.length ? h('dt', {}, 'Owns') : null,
       c.businesses.length ? h('dd', {}, c.businesses.join(', ')) : null,
     ),
+    h('p', { class: 'notes' }, ...c.notes.map((n) => h('span', { class: 'chip' }, n))),
     h('h3', {}, 'Needs'),
     h('div', { class: 'needs' }, ...c.needs.map(([n, v]) => bar(n, v))),
     h('h3', {}, 'Family'),
@@ -314,6 +353,7 @@ export function renderStats(el: HTMLElement, s: Stats) {
       stat('avg savings', money(s.avg_money_cents, 0)),
     ),
     ...economySection(s.economy),
+    ...demographySection(s.demography),
   );
 }
 
@@ -355,5 +395,48 @@ function economySection(e: EconomyStats): HTMLElement[] {
     sparkline(hist.map((d) => d.treasury), (v) => money(v, 0), '#81c784'),
     h('h3', {}, 'Output (firms + public wages)'),
     sparkline(hist.map((d) => d.output), (v) => money(v, 0), '#64b5f6'),
+  ];
+}
+
+function pyramid(bands: [number, number][]): HTMLElement {
+  const max = Math.max(1, ...bands.flatMap(([m, f]) => [m, f]));
+  const rows = bands
+    .map(([m, f], i) => {
+      const label = i === bands.length - 1 ? `${i * 5}+` : `${i * 5}–${i * 5 + 4}`;
+      return h(
+        'div',
+        { class: 'pyr-row' },
+        h('div', { class: 'pyr-bar m' }, h('div', { style: `width:${(m / max) * 100}%` })),
+        h('span', { class: 'pyr-age' }, label),
+        h('div', { class: 'pyr-bar f' }, h('div', { style: `width:${(f / max) * 100}%` })),
+      );
+    })
+    .reverse();
+  return h('div', { class: 'pyramid' }, h('div', { class: 'pyr-legend' }, h('span', {}, '♂ men'), h('span', {}, 'women ♀')), ...rows);
+}
+
+function demographySection(d: DemographyStats): HTMLElement[] {
+  return [
+    h('h3', {}, 'People'),
+    h(
+      'div',
+      { class: 'stats-grid' },
+      stat('average age', d.average_age),
+      stat('couples', d.couples),
+      stat('births (30 days)', d.births_30d),
+      stat('deaths (30 days)', d.deaths_30d),
+      stat('weddings (30 days)', d.marriages_30d),
+      stat('expecting a baby', d.pregnant),
+      stat('arrived (30 days)', d.arrivals_30d),
+      stat('left (30 days)', d.departures_30d),
+      stat('ill right now', d.ill),
+      stat('university graduates', d.university_graduates),
+      stat('commute out', d.commuters_out),
+      stat('commute in', d.commuters_in),
+    ),
+    h('h3', {}, 'Population pyramid'),
+    pyramid(d.pyramid),
+    h('h3', {}, 'Population (60 days)'),
+    sparkline(d.history.map((x) => x.population), (v) => v.toLocaleString('en-US'), '#ba68c8'),
   ];
 }
