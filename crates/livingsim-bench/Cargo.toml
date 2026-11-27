@@ -1,0 +1,19 @@
+[package]
+name = "livingsim-bench"
+description = "Benchmarks: cost per simulated day with 10k, 100k and 1M synthetic agents"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+livingsim-core = { workspace = true, features = ["parallel"] }
+serde_json.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "sim_day"
+harness = false
