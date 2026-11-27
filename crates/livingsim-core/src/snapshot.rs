@@ -17,7 +17,7 @@ use bincode::Options;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAGIC: &[u8; 4] = b"LSIM";
-pub const FORMAT_VERSION: u16 = 1;
+pub const FORMAT_VERSION: u16 = 2;
 pub const HEADER_LEN: usize = 4 + 2 + 32 + 1 + 2 + 4 + 32;
 
 #[repr(u8)]
@@ -170,13 +170,23 @@ fn decode(b: &[u8], kind: Kind) -> Result<(Header, Vec<u8>), SnapshotError> {
 /// When the layout changes: bump `FORMAT_VERSION`, copy the old types into a module
 /// `snapshot::vN` (frozen forever), and add a step `N => vN::to_next(payload)` here. Add a
 /// fixture of the old format under `tests/fixtures/` so CI proves the migration works.
-pub fn migrate(from: u16, _kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
-    let v = from;
-    let p = payload;
-    // Future migrations go here, e.g.:
-    // while v < FORMAT_VERSION { p = match v { 1 => v1::to_v2(p, kind)?, _ => unreachable!() }; v += 1; }
-    if v != FORMAT_VERSION {
+pub fn migrate(from: u16, kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
+    let mut v = from;
+    let mut p = payload;
+    if v == 0 || v > FORMAT_VERSION {
         return Err(SnapshotError::UnsupportedFormat(from));
+    }
+    while v < FORMAT_VERSION {
+        p = match (v, kind) {
+            (1, Kind::Region) => {
+                to_bytes(&from_bytes::<crate::snapshot_v1::RegionV1>(&p)?.upgrade())
+            }
+            (1, Kind::World) => to_bytes(&from_bytes::<crate::snapshot_v1::WorldV1>(&p)?.upgrade()),
+            // Message logs did not change (new message kinds were appended).
+            (1, Kind::MessageLog) => p,
+            _ => return Err(SnapshotError::UnsupportedFormat(from)),
+        };
+        v += 1;
     }
     Ok(p)
 }

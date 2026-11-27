@@ -10,7 +10,7 @@ use crate::names::{NamePool, NameRef};
 use crate::queue::EventQueue;
 use crate::roads::{Mode, RoadGraph, RouteCache, NONE};
 use crate::systems::{DailyContext, Systems};
-use crate::time::{minute_of_day, Tick, TICKS_PER_DAY};
+use crate::time::{Tick, TICKS_PER_DAY};
 use livingsim_content::{JournalKind, NewsKind};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -250,7 +250,11 @@ impl Region {
                 } => {
                     let a = *agent;
                     if (a as usize) < self.agents.len() && self.agents.alive(a) {
-                        self.agents.money[a as usize] -= spent_cents;
+                        self.transfer(
+                            crate::systems::economy::Account::Agent(a),
+                            crate::systems::economy::Account::OtherRegions,
+                            *spent_cents,
+                        );
                         let t = self.tick;
                         self.journal(
                             a,
@@ -261,6 +265,13 @@ impl Region {
                         );
                     }
                 }
+                Body::Sale {
+                    good: _,
+                    qty,
+                    unit_price,
+                    seller_firm,
+                } => self.receive_sale(m.src, *seller_firm, *qty, *unit_price),
+                Body::Payment { firm, amount } => self.receive_payment(*firm, *amount),
                 // Later phases.
                 Body::Migration { .. }
                 | Body::MaterialShipment { .. }
@@ -271,21 +282,21 @@ impl Region {
         }
     }
 
+    /// Food received for free (legacy `Trade` messages).
     fn receive_food(&mut self, src: u16, qty: u32) {
+        use livingsim_content::FirmKind;
         *self.today.food_in.entry(src).or_insert(0) += qty;
-        let mut left = qty;
-        if let Some(tag) = catalog().tags.grocery {
-            let shops: Vec<BuildingId> = self.buildings.with_tag(tag).to_vec();
-            for b in shops {
-                let cap = content().buildings[self.buildings.def[b as usize] as usize].stock * 2;
-                let s = &mut self.buildings.stock[b as usize];
-                let add = left.min(cap.saturating_sub(*s));
-                *s += add;
-                left -= add;
-                if left == 0 {
-                    break;
-                }
-            }
+        let firms = &mut self.systems.economy.firms;
+        let target = firms
+            .iter()
+            .position(|f| f.open && f.kind == FirmKind::Warehouse)
+            .or_else(|| {
+                firms
+                    .iter()
+                    .position(|f| f.open && f.kind == FirmKind::Shop)
+            });
+        if let Some(f) = target {
+            firms[f].stock = firms[f].stock.saturating_add(qty);
         }
     }
 
@@ -295,9 +306,6 @@ impl Region {
         let t = self.tick;
         if t.is_multiple_of(TICKS_PER_DAY) {
             self.morning(t);
-        }
-        if minute_of_day(t) == 18 * 60 {
-            self.ship_farm_produce();
         }
         let mut due = std::mem::take(&mut self.due);
         self.queue.take_due(t, &mut due);
@@ -324,10 +332,8 @@ impl Region {
         }
     }
 
-    /// Daily update at 06:00: pensions, birthdays, restocking, news, later-phase systems.
+    /// Daily update at 06:00: birthdays, news, the economy and later-phase systems.
     fn morning(&mut self, t: Tick) {
-        let c = catalog();
-        let econ = &c.content.economy;
         let mut employed = 0;
         for a in 0..self.agents.len() as u32 {
             let i = a as usize;
@@ -336,12 +342,6 @@ impl Region {
                 || self.agents.act[i] == ACT_FREE_SLOT
             {
                 continue;
-            }
-            let sched = self.agents.schedule[i];
-            if sched == c.schedule_retired {
-                self.agents.money[i] += econ.pension_per_day_cents;
-            } else if sched == c.schedule_unemployed {
-                self.agents.money[i] += econ.benefit_per_day_cents;
             }
             if self.agents.profession[i] != u16::MAX {
                 employed += 1;
@@ -353,15 +353,8 @@ impl Region {
                 self.journal(a, t, JournalKind::BirthdayAge, age_now as u16, 0);
             }
         }
-        // Restock shops from wholesalers (Phase 2 replaces this with supply chains).
-        if let Some(tag) = c.tags.grocery {
-            for &b in self.buildings.with_tag(tag).to_vec().iter() {
-                let cap = c.content.buildings[self.buildings.def[b as usize] as usize].stock;
-                let s = &mut self.buildings.stock[b as usize];
-                *s = (*s).max(cap * 7 / 10);
-            }
-        }
         self.write_news(t);
+        self.economy_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),
@@ -378,7 +371,7 @@ impl Region {
         }
     }
 
-    fn push_news(&mut self, item: NewsItem) {
+    pub(crate) fn push_news(&mut self, item: NewsItem) {
         self.news.push(item);
         if self.news.len() > NEWS_KEPT {
             self.news.remove(0);
@@ -441,33 +434,6 @@ impl Region {
                 subject: *r as u32,
                 n: *n,
             });
-        }
-    }
-
-    /// At 18:00 farms ship their produce: local shops first, the surplus to the neighbour.
-    fn ship_farm_produce(&mut self) {
-        let c = catalog();
-        let Some(farm) = c.tags.farm else { return };
-        let farms = self.buildings.with_tag(farm).len() as u32;
-        if farms == 0 {
-            return;
-        }
-        let produced = farms * c.content.economy.farm_food_per_day;
-        let mut left = produced;
-        if let Some(tag) = c.tags.grocery {
-            for &b in self.buildings.with_tag(tag).to_vec().iter() {
-                let cap = c.content.buildings[self.buildings.def[b as usize] as usize].stock;
-                let s = &mut self.buildings.stock[b as usize];
-                let add = left.min(cap.saturating_sub(*s));
-                *s += add;
-                left -= add;
-            }
-        }
-        if left > 0 {
-            if let Some(g) = self.gateways.first() {
-                let dest = g.to_region;
-                self.send(dest, Body::Trade { good: 0, qty: left });
-            }
         }
     }
 
@@ -537,7 +503,6 @@ impl Region {
         ag.traits[i] = t.traits;
         ag.needs[i] = t.needs;
         ag.needs_t[i] = self.tick;
-        ag.money[i] = t.money;
         ag.home[i] = gw;
         ag.schedule[i] = catalog().schedule_unemployed;
         ag.act[i] = ACT_AWAY;
@@ -554,6 +519,7 @@ impl Region {
                 places: 0,
             },
         );
+        self.visitor_money_in(a, t.money);
         *self.today.visitors_in.entry(src).or_insert(0) += 1;
         let at = t.arrival.max(self.tick);
         self.set_event(a, at);
@@ -603,6 +569,7 @@ impl Region {
 
     pub(crate) fn depart_visitor(&mut self, a: AgentId, t: Tick) {
         let Some(info) = self.visitors.remove(&a) else {
+            self.visitor_money_out(a);
             self.set_place(a, NONE);
             self.agents.release(a);
             return;
@@ -617,6 +584,7 @@ impl Region {
             },
         );
         let _ = t;
+        self.visitor_money_out(a);
         self.set_place(a, NONE);
         self.agents.release(a);
     }
