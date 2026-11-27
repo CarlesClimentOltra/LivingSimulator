@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.97.0
         with:
           targets: wasm32-unknown-unknown
@@ -32,7 +32,7 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@${{ env.WASM_BINDGEN_VERSION }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Native benchmarks (10k, 100k, 1M agents)
@@ -44,6 +44,17 @@ jobs:
           jq -s 'add' native.json wasm.json > bench.json
           cat bench.json
           ./scripts/check-bench-targets.sh bench.json
+      - name: Create the bench-data branch on first run
+        if: github.event_name == 'push'
+        run: |
+          if ! git ls-remote --exit-code --heads origin bench-data >/dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git worktree add --orphan -b bench-data "$RUNNER_TEMP/bench-data"
+            cd "$RUNNER_TEMP/bench-data"
+            git commit --allow-empty -m "chore: start benchmark history"
+            git push origin bench-data
+          fi
       - uses: benchmark-action/github-action-benchmark@v1
         with:
           name: Living Simulator
@@ -52,6 +63,8 @@ jobs:
           gh-pages-branch: bench-data
           benchmark-data-dir-path: bench
           auto-push: ${{ github.event_name == 'push' }}
+          # Pull requests only compare when history exists; they never write it.
+          skip-fetch-gh-pages: ${{ github.event_name != 'push' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           alert-threshold: "125%"
           comment-on-alert: true
