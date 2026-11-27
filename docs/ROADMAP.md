@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–2 are implemented.
+> Status: **approved**. Phases 0–2 are implemented; Phase 3 is in progress.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -124,17 +124,47 @@ Milestones:
 
 ## Phase 3 — Life cycle
 
-🎯 *Couples form and move in together, babies are born (and you can read why their name
-was chosen), children grow up, go to school and later university, people retire and
-eventually die. Family trees appear in person cards. Births and deaths are in the paper.*
+🎯 *People make friends, fall in love, move in together, marry and sometimes divorce.
+Babies are born and named after the family, and couples who cannot have children (for
+example same-sex couples) adopt. Children go to daycare, school and university, adults
+retire at 66. People fall ill, are treated at the hospital and, eventually, die of old age
+or illness; their families mourn and inherit. Villagers commute to jobs in the city, and
+families move between towns or leave the region. Family trees appear in person cards, and
+births, weddings and obituaries in the newspaper.*
 
-- Relationships graph (friends, partners) with compact storage.
-- Partnering, moving in, household splitting/merging.
-- Pregnancy and births; naming influenced by family names.
-- Ageing, age-dependent schedules, education levels, graduation, retirement.
-- Natural deaths with an age-based hazard model; funerals; inheritance.
-- Grief/mourning effects on needs.
-- Migration between regions (`Migration` messages) driven by housing/jobs.
+Decisions (approved):
+- Deaths only from old age or illness, always non-graphic.
+- Couples can be of different or the same sex. Divorce and blended families exist. Only a
+  woman of fertile age with a male partner can conceive; any couple may adopt.
+- Housing stays fixed until Phase 4. People without a free home stay with their family or
+  leave the region.
+- Commuting between towns is part of this phase.
+
+Milestones:
+1. **Content.** `demography.ron` (mortality and illness by age, fertility, partnering,
+   marriage, divorce, adoption, leaving home, migration rates), education levels for
+   professions, daycare and cemetery buildings, and new activities (visit a friend,
+   recover).
+2. **Friends.** Up to four per person, made among coworkers, classmates and neighbours. A
+   "visit a friend" activity.
+3. **Couples.** Sexual orientation derived from the seed. Dating, moving in (into a free
+   home or the partner's), marriage, divorce.
+4. **Children.** Pregnancy, birth, names chosen from the family's names, parental leave,
+   adoption (orphans first, otherwise children from outside the region).
+5. **Stages of life.** Daycare (1–5), school (6–17), university (4 years, optional) or a
+   first job, education requirements for jobs, retirement at 66.
+6. **Health and death.** Illness (at home, or in hospital when severe), recovery, natural
+   death. Inheritance through `transfer` (money is still conserved), firms and rented-out
+   homes pass to heirs, mourning, funerals at the cemetery, orphans.
+7. **Migration and commuting.** Children leaving home, emigration of long-term job seekers,
+   immigration into free homes and jobs, families moving between towns (`Movers`), and
+   villagers filling city vacancies (`JobOffers` / `JobAccept` / `RemoteWage` /
+   `JobEnded`).
+8. **Snapshot format v3** with migration from v2, keeping everyone (with education and
+   orientation assigned deterministically).
+9. **UI.** Family tree and education on person cards, a population pyramid and
+   demographic rates, newspaper stories (births, weddings, obituaries, the oldest
+   resident).
 
 ## Phase 4 — Construction and growth
 
