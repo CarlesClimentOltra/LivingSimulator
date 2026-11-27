@@ -1265,6 +1265,7 @@ impl Region {
                 for a in std::mem::take(&mut staff[f]) {
                     self.lay_off(a, t);
                 }
+                self.end_remote_staff(f as u32);
                 // Creditors outside the region absorb the debt.
                 let debt = -self.systems.economy.firms[f].cash;
                 self.transfer(Account::World, Account::Firm(f as u32), debt);
@@ -1390,10 +1391,11 @@ impl Region {
                 self.desired_staff(f as u32).min(fm.positions as u32)
             };
             let _ = def;
-            if staff[f].len() as u32 >= limit {
+            let have_total = staff[f].len() as u32 + self.remote_staff_of(f as u32) as u32;
+            if have_total >= limit {
                 continue;
             }
-            let mut room = limit - staff[f].len() as u32;
+            let mut room = limit - have_total;
             let mut hires = 0;
             for js in &def.jobs {
                 let have = staff[f]
@@ -1410,7 +1412,9 @@ impl Region {
                     for k in 0..pool.len().min(24) {
                         let j = (start + k) % pool.len();
                         let a = pool[j];
-                        if age_years(self.agents.birth[a as usize], t) < prof.min_age as u32 {
+                        if age_years(self.agents.birth[a as usize], t) < prof.min_age as u32
+                            || self.systems.demography.education_of(a) < prof.education
+                        {
                             continue;
                         }
                         let d = self.manhattan(self.agents.home[a as usize], b);

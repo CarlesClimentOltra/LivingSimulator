@@ -505,6 +505,7 @@ pub fn generate_region(
 
     populate(&mut r, &mut rng, start);
     r.bootstrap_economy();
+    r.bootstrap_demography();
     let pop = r.population();
     r.news.push(NewsItem {
         tick: start,

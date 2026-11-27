@@ -1,0 +1,41 @@
+// Life cycle rates (Phase 3). "Annual ‰" = chance per simulated year, in per mille.
+// One simulated year lasts about 15 real days, so these rates play out visibly.
+(
+    // Annual ‰ chance of dying of old age or illness, by decade of age:
+    //                   0-9 10s 20s 30s 40s 50s 60s 70s  80s  90s  100+
+    mortality_by_decade: [1, 1,  1,  2,  3,  7, 16, 40, 110, 280, 500],
+    // Annual ‰ chance of falling ill (a few days at home, or hospital when severe).
+    illness_by_decade:   [600, 300, 250, 250, 300, 400, 600, 900, 1400, 2000, 2500],
+    // ‰ of illnesses that are severe enough for hospital.
+    severe_by_decade:    [20, 10, 10, 20, 40, 80, 150, 250, 350, 450, 550],
+    illness_days: (2, 10),
+    severe_mortality_factor: 25,
+
+    // Annual ‰ chance of a pregnancy for a fertile cohabiting couple: (mother's max age, ‰).
+    fertility_by_age: [(19, 30), (24, 110), (29, 150), (34, 140), (39, 70), (44, 20)],
+    max_children: 4,
+    pregnancy_days: 270,
+    parental_leave_days: 112,
+
+    // Couples.
+    dating_permille: 350,
+    move_in_after_days: 120,
+    marriage_permille: 120,
+    divorce_permille: 18,
+    adoption_permille: 40,
+    same_sex_permille: 50,
+    bisexual_permille: 30,
+    friendship_permille: 1500,
+
+    // Moving.
+    leave_home_permille: 300,
+    emigration_permille: 250,
+    emigration_after_days: 60,
+    immigration_permille: 500,
+
+    // Education and work.
+    retirement_age: 66,
+    university_permille: 400,
+    university_years: 4,
+    initial_education_permille: (200, 500, 300),
+)

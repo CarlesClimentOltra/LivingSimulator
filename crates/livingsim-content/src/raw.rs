@@ -23,6 +23,7 @@ pub enum Place {
     Workplace,
     Tag(String),
     OtherRegion,
+    FriendHome,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -80,6 +81,9 @@ pub struct Profession {
     pub schedules: Vec<String>,
     #[serde(default = "default_min_age")]
     pub min_age: u8,
+    /// 0 none, 1 primary, 2 secondary, 3 university.
+    #[serde(default)]
+    pub education: u8,
 }
 
 fn default_min_age() -> u8 {
@@ -299,4 +303,5 @@ pub struct RawContent {
     pub goods: Vec<Good>,
     pub crimes: Vec<Crime>,
     pub technologies: Vec<Technology>,
+    pub demography: Option<crate::DemographyDef>,
 }

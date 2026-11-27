@@ -62,6 +62,22 @@
      effects: {"fun": 1200, "social": 600, "energy": -600, "hygiene": -800},
      minutes: (45, 90), cost_cents: 300, ages: (14, 80), doing: "working out"),
 
+    (id: "visit_friend", name: "Visit a friend", kind: VisitFriend, place: FriendHome,
+     effects: {"social": 2800, "fun": 1200},
+     minutes: (60, 150), ages: (6, 255), bias: 200, doing: "visiting a friend"),
+
+    (id: "recover_home", name: "Rest at home", kind: Recover, place: Home,
+     effects: {"energy": 600, "fun": -100},
+     minutes: (240, 720), doing: "resting at home, ill"),
+
+    (id: "recover_hospital", name: "Treatment at the hospital", kind: Recover, place: Tag("hospital"),
+     effects: {"energy": 400, "social": 200, "fun": -150},
+     minutes: (480, 1440), doing: "being treated at the hospital"),
+
+    (id: "daycare", name: "Daycare", kind: School, place: Workplace,
+     effects: {"hunger": 300, "fun": 1200, "social": 900},
+     minutes: (60, 480), ages: (0, 5), doing: "at daycare"),
+
     (id: "visit_city", name: "Visit the city", kind: VisitRegion, place: OtherRegion,
      effects: {"fun": 1800, "social": 1200},
      minutes: (180, 300), bias: -400, ages: (16, 85), doing: "visiting another town"),

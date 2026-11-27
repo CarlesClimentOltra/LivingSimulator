@@ -1,4 +1,4 @@
-//! Frozen layout of snapshot format v1 (Phase 1), kept forever so old snapshots can be
+//! Frozen layouts of snapshot formats v1 (Phase 1) and v2 (Phase 2), kept forever so old snapshots can be
 //! migrated. Only the types that changed in v2 are copied here; everything else reuses
 //! the current types, which have the same layout.
 //!
@@ -13,7 +13,7 @@ use crate::messages::Message;
 use crate::names::{NamePool, NameRef};
 use crate::region::{AwayInfo, DailyCounters, Gateway, NewsItem, Region, VisitorInfo};
 use crate::roads::RoadGraph;
-use crate::systems::{construction, crime, demography, expansion, justice, technology, Systems};
+use crate::systems::{construction, crime, economy, expansion, justice, technology, Systems};
 use crate::time::Tick;
 use crate::world::{IntercityGraph, World};
 use serde::{Deserialize, Serialize};
@@ -34,10 +34,19 @@ pub struct EconomyState {
     pub firms: Vec<Firm>,
 }
 
+/// The Phase 1–2 demography stub (frozen).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct DemographyStateV1 {
+    pub births: u32,
+    pub deaths: u32,
+    pub marriages: u32,
+    pub pregnancies: Vec<(u32, Tick)>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SystemsV1 {
     pub economy: EconomyState,
-    pub demography: demography::DemographyState,
+    pub demography: DemographyStateV1,
     pub construction: construction::ConstructionState,
     pub crime: crime::CrimeState,
     pub justice: justice::JusticeState,
@@ -71,6 +80,54 @@ pub struct RegionV1 {
     pub out_seq: u32,
     pub systems: SystemsV1,
     pub events: u64,
+}
+
+/// Format v2 (Phase 2): the real economy, and still the demography stub.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct SystemsV2 {
+    pub economy: economy::EconomyState,
+    pub demography: DemographyStateV1,
+    pub construction: construction::ConstructionState,
+    pub crime: crime::CrimeState,
+    pub justice: justice::JusticeState,
+    pub expansion: expansion::ExpansionState,
+    pub technology: technology::TechnologyState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RegionV2 {
+    pub id: u16,
+    pub seed: u64,
+    pub template: u16,
+    pub style: u16,
+    pub name: NameRef,
+    pub origin: (i32, i32),
+    pub tick: Tick,
+    pub map: TileMap,
+    pub roads: RoadGraph,
+    pub buildings: Buildings,
+    pub households: Households,
+    pub agents: Agents,
+    pub names: NamePool,
+    pub streets: Vec<NameRef>,
+    pub gateways: Vec<Gateway>,
+    pub visitors: BTreeMap<AgentId, VisitorInfo>,
+    pub away: BTreeMap<AgentId, AwayInfo>,
+    pub today: DailyCounters,
+    pub yesterday: DailyCounters,
+    pub news: Vec<NewsItem>,
+    pub outbox: Vec<Message>,
+    pub out_seq: u32,
+    pub systems: SystemsV2,
+    pub events: u64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorldV2 {
+    pub seed: u64,
+    pub tick: Tick,
+    pub regions: Vec<RegionV2>,
+    pub intercity: IntercityGraph,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -111,7 +168,7 @@ impl RegionV1 {
         let s = self.systems;
         r.systems = Systems {
             economy: Default::default(),
-            demography: s.demography,
+            demography: Default::default(),
             construction: s.construction,
             crime: s.crime,
             justice: s.justice,
@@ -120,7 +177,62 @@ impl RegionV1 {
         };
         r.prepare();
         r.bootstrap_economy();
+        r.bootstrap_demography();
         r
+    }
+}
+
+impl RegionV2 {
+    pub fn upgrade(self) -> Region {
+        let mut r = Region::empty(
+            self.id,
+            self.seed,
+            self.template,
+            self.style,
+            self.map,
+            self.tick,
+        );
+        r.name = self.name;
+        r.origin = self.origin;
+        r.roads = self.roads;
+        r.buildings = self.buildings;
+        r.households = self.households;
+        r.agents = self.agents;
+        r.names = self.names;
+        r.streets = self.streets;
+        r.gateways = self.gateways;
+        r.visitors = self.visitors;
+        r.away = self.away;
+        r.today = self.today;
+        r.yesterday = self.yesterday;
+        r.news = self.news;
+        r.outbox = self.outbox;
+        r.out_seq = self.out_seq;
+        r.events = self.events;
+        let s = self.systems;
+        r.systems = Systems {
+            economy: s.economy,
+            demography: Default::default(),
+            construction: s.construction,
+            crime: s.crime,
+            justice: s.justice,
+            expansion: s.expansion,
+            technology: s.technology,
+        };
+        r.prepare();
+        r.bootstrap_demography();
+        r
+    }
+}
+
+impl WorldV2 {
+    pub fn upgrade(self) -> World {
+        World {
+            seed: self.seed,
+            tick: self.tick,
+            regions: self.regions.into_iter().map(RegionV2::upgrade).collect(),
+            intercity: self.intercity,
+        }
     }
 }
 

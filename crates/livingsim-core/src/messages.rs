@@ -84,6 +84,27 @@ pub enum Body {
         firm: u32,
         amount: i64,
     },
+    /// Phase 3: a household moving to the destination town.
+    Movers(Vec<crate::systems::demography::Mover>),
+    /// Phase 3: open positions (firm, profession, count, workplace name) for commuters.
+    JobOffers(Vec<(u32, u16, u16, String)>),
+    /// Phase 3: a commuter from the source town takes a job at `firm`.
+    JobAccept {
+        firm: u32,
+        agent: u32,
+        profession: u16,
+        schedule: u16,
+    },
+    /// Phase 3: a commuting job ended (the worker left, or the firm let them go).
+    JobEnded {
+        firm: u32,
+        agent: u32,
+    },
+    /// Phase 3: a commuter's net wage for one shift.
+    RemoteWage {
+        agent: u32,
+        net: i64,
+    },
 }
 
 /// Messages delivered to one region over a span of ticks, as published by the runner.
