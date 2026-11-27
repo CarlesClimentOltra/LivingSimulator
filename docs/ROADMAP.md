@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–3 are implemented.
+> Status: **approved**. Phases 0–3 are implemented; Phase 4 is in progress.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -168,16 +168,45 @@ Milestones:
 
 ## Phase 4 — Construction and growth
 
-🎯 *Building sites appear where housing, jobs or shops are lacking; workers with helmets
-build them phase by phase (foundation → structure → roof → finished), new roads and
-allotments get built. The city visibly grows over days.*
+🎯 *The town notices what it lacks — homes for couples living apart and young people still
+with their parents, shops where shelves run empty, daycare, a cemetery, school places — and
+builds it. Investors, real estate agencies and the town hall fund projects; the
+construction company hires builders who go to the site every day. Sites are fenced, and
+foundations, scaffolding and floors rise phase by phase (a house takes 2–4 real days).
+When empty lots run out, new streets are laid out into the farmland around the town.*
 
-- Demand model (housing shortage, unemployment, lack of shops/services, food).
-- Planning: zoning decisions, lot selection, project queue.
-- Construction firms, worker crews, material deliveries, multi-step task plans.
-- Visible construction phases (data-defined meshes per phase).
-- Road building with route-cache invalidation and road-graph versioning.
-- Incremental per-chunk snapshot updates.
+Decisions (approved):
+- Growth by infill of empty lots and outward expansion. No demolition or densification
+  yet.
+- Realistic pace: a house takes 1–2 simulated months (2–4 real days), an apartment block
+  4–6 simulated months.
+- Building materials are bought from outside the region.
+- The phase also includes a review of the live world, the mobile check and the
+  generator's age pyramid.
+
+Milestones:
+1. **Review.** Health projection of the live world (the `health` example), the generator's
+   age pyramid, mobile settings.
+2. **Room to grow.** Regions get an expansion ring of undeveloped blocks (`max_blocks` per
+   template). Existing worlds are migrated by shifting coordinates, so their world
+   position is unchanged.
+3. **Demand.** Weekly planning from the simulation's own signals: couples living apart,
+   adults stuck with their parents, empty shelves, full schools and daycares, missing
+   cemetery, unemployment.
+4. **Projects.** Buildings and roads go through planned → foundation → structure → roof
+   → finished. Work is measured in builder-shifts. The funder (town hall, agency or
+   investor) pays each phase to the construction company, and materials are imported.
+   Firms and tenures are created on completion.
+5. **Builders on site.** Construction workers go to their firm's active site and
+   contribute their shifts. Regions without a builder use slower outside contractors.
+6. **Expansion.** When no suitable lot is free, street projects open up a new block next to
+   the town. New roads invalidate cached routes.
+7. **Rendering.** Dirt road works, fenced lots, a structure growing by phase, scaffolding
+   and cranes. The worker sends updated static data when the map changes.
+8. **Snapshot format v5** with a migration from v4 (content ids kept). Tests for money
+   conservation, project completion and expansion.
+9. **UI.** A "Construction" panel with active projects and progress, building cards for
+   sites, and newspaper stories (works start, inaugurations, new streets).
 
 ## Phase 5 — Crime and justice
 
