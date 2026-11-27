@@ -1,0 +1,9 @@
+/target
+**/node_modules
+/web/dist
+/web/src/wasm/
+/web/public/world/
+/out/
+*.bin.zst
+!/crates/livingsim-core/tests/fixtures/*.bin.zst
+.DS_Store

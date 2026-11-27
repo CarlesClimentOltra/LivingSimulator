@@ -1,0 +1,32 @@
+name: Feature or content idea
+description: Propose a new behaviour, building, profession, technology, visual effect…
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What should happen in the city? Remember that visitors only observe, they never interact with the world.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - Content only (new entries in /data)
+        - Simulation rules (livingsim-core)
+        - Rendering / UI
+        - Infrastructure
+    validations:
+      required: true
+  - type: textarea
+    id: phase
+    attributes:
+      label: Roadmap phase
+      description: Which phase of docs/ROADMAP.md does this belong to, if any?
+  - type: textarea
+    id: perf
+    attributes:
+      label: Performance and determinism considerations
+      description: Does it add per-tick work for every agent? Does it need new state? (See CONTRIBUTING.md.)

@@ -1,0 +1,6 @@
+# Pinned for determinism and reproducible builds. Bump deliberately (it changes sim_version).
+[toolchain]
+channel = "1.97.0"
+targets = ["wasm32-unknown-unknown"]
+components = ["rustfmt", "clippy"]
+profile = "minimal"
