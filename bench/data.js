@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795852555438,
+  "lastUpdate": 1795855311916,
   "repoUrl": "https://github.com/CarlesClimentOltra/LivingSimulator",
   "entries": {
     "Living Simulator": [
@@ -266,6 +266,95 @@ window.BENCHMARK_DATA = {
           {
             "name": "WASM catch-up, 1 day, region 1 (500 agents)",
             "value": 7,
+            "unit": "ms"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "98279159+CarlesClimentOltra@users.noreply.github.com",
+            "name": "CarlesClimentOltra",
+            "username": "CarlesClimentOltra"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8a2732fe991bb5688ccd248a5b018fa3705f0a14",
+          "message": "Merge pull request #8 from CarlesClimentOltra/claude/friendly-davinci-32gdj1\n\nPhase 5: crime and justice",
+          "timestamp": "2026-11-28T09:39:21+01:00",
+          "tree_id": "78bc191483ee9e9a1b0bfffea25798c81c5b9b06",
+          "url": "https://github.com/CarlesClimentOltra/LivingSimulator/commit/8a2732fe991bb5688ccd248a5b018fa3705f0a14"
+        },
+        "date": 1795855311323,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "1 simulated day, 10000 agents",
+            "value": 311.9,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 10000 agents",
+            "value": 188.9,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 10000 agents",
+            "value": 15.8,
+            "unit": "events"
+          },
+          {
+            "name": "region checkpoint size, 10k agents",
+            "value": 1651.8,
+            "unit": "KB"
+          },
+          {
+            "name": "1 simulated day, 100000 agents",
+            "value": 1749.8,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 100000 agents",
+            "value": 1541.4,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 100000 agents",
+            "value": 15.7,
+            "unit": "events"
+          },
+          {
+            "name": "1 simulated day, 1000000 agents",
+            "value": 14590.1,
+            "unit": "ms"
+          },
+          {
+            "name": "generation (incl. warm-up), 1000000 agents",
+            "value": 15095.9,
+            "unit": "ms"
+          },
+          {
+            "name": "events per agent per day, 1000000 agents",
+            "value": 15.7,
+            "unit": "events"
+          },
+          {
+            "name": "memory per agent (columns + journal)",
+            "value": 300,
+            "unit": "bytes"
+          },
+          {
+            "name": "WASM catch-up, 1 day, region 0 (10001 agents)",
+            "value": 466,
+            "unit": "ms"
+          },
+          {
+            "name": "WASM catch-up, 1 day, region 1 (500 agents)",
+            "value": 8,
             "unit": "ms"
           }
         ]
