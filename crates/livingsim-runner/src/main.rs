@@ -457,6 +457,7 @@ fn summary_of(r: &Region) -> RegionSummary {
         inmates: s.safety.inmates + s.safety.inmates_from_elsewhere,
         founded_at: r.systems.expansion.founded_at,
         parent: r.systems.expansion.parent,
+        technologies: r.systems.technology.researched.len() as u32,
     }
 }
 
@@ -495,6 +496,7 @@ fn static_json(r: &Region) -> String {
         "info": {
             "id": r.id, "name": r.name(), "width": r.map.width, "height": r.map.height,
             "origin": [r.origin.0, r.origin.1], "gateways": gateways, "population": r.population(),
+            "techs": r.systems.technology.researched,
         },
         "tiles": base64(&r.map.kind),
         "buildings": render::buildings_packed(r),

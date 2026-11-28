@@ -139,3 +139,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a33; }
   background: rgba(20, 24, 33, 0.82); color: #fff; font: inherit; font-size: 12px; white-space: nowrap;
 }
 .town-label strong { font-size: 14px; }
+
+/* Technology (Phase 7) */
+.tech { margin: 8px 0; padding-left: 2px; }
+.tech-head { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.tech-icon { width: 14px; text-align: center; }
+.tech.known .tech-icon { color: #81c784; }
+.tech.researching .tech-icon { color: #ffd54f; }
+.tech.locked { opacity: 0.55; }

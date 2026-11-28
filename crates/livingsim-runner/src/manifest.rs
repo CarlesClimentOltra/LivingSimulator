@@ -34,6 +34,8 @@ pub struct RegionSummary {
     pub inmates: u32,
     pub founded_at: u32,
     pub parent: Option<u16>,
+    #[serde(default)]
+    pub technologies: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

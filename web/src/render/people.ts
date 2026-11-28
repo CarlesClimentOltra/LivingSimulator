@@ -123,9 +123,13 @@ export class People {
   private policeLights!: THREE.InstancedMesh;
 
   /** Police patrol legs of a region (from the worker, every tick). */
-  setPatrols(region: number, legs: Uint32Array) {
+  setPatrols(region: number, legs: Uint32Array, buses?: Uint32Array) {
     this.patrols.set(region, legs);
+    if (buses) this.buses.set(region, buses);
   }
+  private buses = new Map<number, Uint32Array>();
+  private busMesh!: THREE.InstancedMesh;
+  private busWindows!: THREE.InstancedMesh;
 
   private makePolice() {
     const n = 64;
@@ -139,6 +143,43 @@ export class People {
       this.group.add(im);
     }
     this.policeLights.setColorAt(0, new THREE.Color(0xffffff));
+    // Electric buses: long green-and-white boxes with a band of windows.
+    this.busMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.36, 1.7).translate(0, 0.24, 0), new THREE.MeshLambertMaterial({ color: 0x43a047 }), 64);
+    this.busWindows = new THREE.InstancedMesh(new THREE.BoxGeometry(0.52, 0.12, 1.5).translate(0, 0.33, 0), new THREE.MeshLambertMaterial({ color: 0xe0f2f1 }), 64);
+    for (const im of [this.busMesh, this.busWindows]) {
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.frustumCulled = false;
+      im.count = 0;
+      this.group.add(im);
+    }
+  }
+
+  private updateBuses(t: number) {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const pos = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const one = new THREE.Vector3(1, 1, 1);
+    let n = 0;
+    for (const reg of this.regions) {
+      const legs = this.buses.get(reg.id);
+      if (!legs) continue;
+      for (let i = 0; i + 3 < legs.length && n < 64; i += 4) {
+        const [from, to, dep, arr] = [legs[i], legs[i + 1], legs[i + 2], legs[i + 3]];
+        if (from === to) continue;
+        const rt = this.routes.get(`${reg.id}/${routeKey(from, to, true)}`);
+        if (!rt) continue;
+        const f = Math.min(1, Math.max(0, (t - dep) / Math.max(1, arr - dep)));
+        q.setFromAxisAngle(up, this.along(rt, f, 0.25, pos));
+        m.compose(pos, q, one);
+        this.busMesh.setMatrixAt(n, m);
+        this.busWindows.setMatrixAt(n++, m);
+      }
+    }
+    for (const im of [this.busMesh, this.busWindows]) {
+      im.count = n;
+      im.instanceMatrix.needsUpdate = true;
+    }
   }
 
   /** Police cars along their patrol legs; lights flash on the way to an incident. */
@@ -350,6 +391,7 @@ export class People {
     this.furniture.instanceMatrix.needsUpdate = true;
     if (this.furniture.instanceColor) this.furniture.instanceColor.needsUpdate = true;
     this.updatePolice(t, realMs);
+    this.updateBuses(t);
     this.points.visible = far;
     this.points.geometry.setDrawRange(0, pi);
     (this.points.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
