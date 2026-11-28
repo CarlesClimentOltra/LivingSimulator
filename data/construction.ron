@@ -1,0 +1,33 @@
+// Construction (Phase 4): costs, pace and what the town builds when something is missing.
+// One unit of work = one builder-shift. A house (3x4 tiles, 1 floor) needs about
+// 12 * (3 + 4 + 4) = 132 units: a crew of four finishes it in ~33 workdays (~46 days),
+// i.e. about two real days. Parks and cemeteries only need the foundation (landscaping).
+(
+    labour_per_unit_cents: 22000,
+    materials_per_unit_cents: 15000,
+    foundation_per_tile: 3,
+    structure_per_tile_floor: 4,
+    roof_per_tile: 4,
+    road_per_tile: 2,
+    contractor_units_per_day: 3,
+    crew_size: 4,
+    projects_per_firm: 3,
+    new_projects_per_week: 3,
+
+    // When to build.
+    housing_waiting_threshold: 4,
+    shop_shortage_threshold: 40,
+    unemployment_threshold: 110,
+    daycare_waiting_threshold: 40,
+    school_waiting_threshold: 40,
+
+    // What to build.
+    small_housing: ["terraced_houses", "house"],
+    medium_housing: ["apartments"],
+    shops: ["corner_shop"],
+    workplaces: ["office"],
+    daycare: "daycare",
+    school: "school",
+    cemetery: "cemetery",
+    site: "construction_site",
+)

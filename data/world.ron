@@ -12,6 +12,8 @@
             rings: [(2, Downtown), (5, Mixed), (8, Residential), (99, Rural)],
             park_permille: 60,
             has_river: true,
+            // Room to grow (Phase 4): up to 29x29 blocks.
+            max_blocks: 29,
             required: {
                 "town_hall": 1, "police_station": 2, "jail": 1, "hospital": 1, "fire_station": 1,
                 "school": 3, "university": 1, "supermarket": 4, "cinema": 1, "office_tower": 2,
@@ -22,6 +24,7 @@
             id: "village",
             blocks: 7,
             target_population: 500,
+            max_blocks: 13,
             rings: [(1, Mixed), (2, Residential), (99, Rural)],
             park_permille: 0,
             required: {"village_school": 1, "corner_shop": 2, "farm": 4, "bar": 1, "cafe": 1, "real_estate_agency": 1, "daycare": 1},

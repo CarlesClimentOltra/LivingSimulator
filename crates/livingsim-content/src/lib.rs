@@ -381,10 +381,13 @@ pub enum JournalKind {
     NewFriend = 40,
     MovedTown = 41,
     StartedUniversity = 42,
+    WorkedOnSite = 43,
+    Invested = 44,
+    MovedIntoNewHome = 45,
 }
 
 impl JournalKind {
-    pub const ALL: [JournalKind; 43] = [
+    pub const ALL: [JournalKind; 46] = [
         JournalKind::WokeUp,
         JournalKind::WentTo,
         JournalKind::Started,
@@ -428,6 +431,9 @@ impl JournalKind {
         JournalKind::NewFriend,
         JournalKind::MovedTown,
         JournalKind::StartedUniversity,
+        JournalKind::WorkedOnSite,
+        JournalKind::Invested,
+        JournalKind::MovedIntoNewHome,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -474,6 +480,9 @@ impl JournalKind {
             JournalKind::NewFriend => "new_friend",
             JournalKind::MovedTown => "moved_town",
             JournalKind::StartedUniversity => "started_university",
+            JournalKind::WorkedOnSite => "worked_on_site",
+            JournalKind::Invested => "invested",
+            JournalKind::MovedIntoNewHome => "moved_into_new_home",
         }
     }
     pub fn from_u16(v: u16) -> Option<JournalKind> {
@@ -506,10 +515,13 @@ pub enum NewsKind {
     Census = 18,
     Migration = 19,
     Commuters = 20,
+    WorksStart = 21,
+    Inauguration = 22,
+    NewStreet = 23,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 21] = [
+    pub const ALL: [NewsKind; 24] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
@@ -531,6 +543,9 @@ impl NewsKind {
         NewsKind::Census,
         NewsKind::Migration,
         NewsKind::Commuters,
+        NewsKind::WorksStart,
+        NewsKind::Inauguration,
+        NewsKind::NewStreet,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -555,6 +570,9 @@ impl NewsKind {
             NewsKind::Census => "census",
             NewsKind::Migration => "migration",
             NewsKind::Commuters => "commuters",
+            NewsKind::WorksStart => "works_start",
+            NewsKind::Inauguration => "inauguration",
+            NewsKind::NewStreet => "new_street",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -631,6 +649,8 @@ pub struct RegionTemplate {
     pub has_river: bool,
     /// Buildings that must exist: (building index, count).
     pub required: Vec<(u16, u16)>,
+    /// Blocks per side the town may grow to (Phase 4). The map has room for this.
+    pub max_blocks: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -690,6 +710,49 @@ pub struct Content {
     pub crimes: Vec<CrimeDef>,
     pub technologies: Vec<TechDef>,
     pub demography: DemographyDef,
+    pub construction: ConstructionDef,
+}
+
+/// Construction costs, pace and planning rules (`data/construction.ron`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConstructionDef {
+    /// Labour paid to the construction company per unit of work (one builder-shift).
+    pub labour_per_unit_cents: i64,
+    /// Materials bought outside the region per unit of work.
+    pub materials_per_unit_cents: i64,
+    /// Work units per footprint tile: foundation, per floor of structure, roof/finishing.
+    pub foundation_per_tile: u32,
+    pub structure_per_tile_floor: u32,
+    pub roof_per_tile: u32,
+    /// Work units per tile of new street.
+    pub road_per_tile: u32,
+    /// Units per day done by outside contractors in towns without a construction company.
+    pub contractor_units_per_day: u32,
+    /// Builders per project; the rest of a company's builders wait at the yard.
+    pub crew_size: u8,
+    /// Projects a construction company works on at once.
+    pub projects_per_firm: u8,
+    /// Projects planned per week at most.
+    pub new_projects_per_week: u8,
+    /// Housing: build when this many households wait for a home (beyond free homes).
+    pub housing_waiting_threshold: u32,
+    /// Shops: build when customers found empty shelves this many times yesterday.
+    pub shop_shortage_threshold: u32,
+    /// Jobs: build workplaces when unemployment (‰) is above this.
+    pub unemployment_threshold: u32,
+    /// Services: toddlers without daycare / children without school before building more.
+    pub daycare_waiting_threshold: u32,
+    pub school_waiting_threshold: u32,
+    /// What to build (building ids) for each need.
+    pub small_housing: Vec<u16>,
+    pub medium_housing: Vec<u16>,
+    pub shops: Vec<u16>,
+    pub workplaces: Vec<u16>,
+    pub daycare: u16,
+    pub school: u16,
+    pub cemetery: u16,
+    /// The temporary building used for sites.
+    pub site: u16,
 }
 
 /// Rates for births, deaths, couples and migration (`data/demography.ron`).

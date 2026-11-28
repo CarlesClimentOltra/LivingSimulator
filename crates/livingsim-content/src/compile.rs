@@ -649,6 +649,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
                     park_permille: t.park_permille,
                     has_river: t.has_river,
                     required,
+                    max_blocks: t.max_blocks.max(t.blocks),
                 });
             }
             let template_ids: Vec<&str> = w.templates.iter().map(|t| t.id.as_str()).collect();
@@ -777,6 +778,52 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
         }
     };
 
+    let construction = match &raw.construction {
+        Some(k) => {
+            let one = |ctx: &mut Ctx, id: &str| match find(&building_ids, id) {
+                Some(i) => i,
+                None => {
+                    ctx.err(format!("construction.ron: unknown building `{id}`"));
+                    0
+                }
+            };
+            let many = |ctx: &mut Ctx, ids: &[String]| {
+                ids.iter().map(|id| one(ctx, id)).collect::<Vec<u16>>()
+            };
+            ConstructionDef {
+                labour_per_unit_cents: k.labour_per_unit_cents,
+                materials_per_unit_cents: k.materials_per_unit_cents,
+                foundation_per_tile: k.foundation_per_tile.max(1),
+                structure_per_tile_floor: k.structure_per_tile_floor.max(1),
+                roof_per_tile: k.roof_per_tile.max(1),
+                road_per_tile: k.road_per_tile.max(1),
+                contractor_units_per_day: k.contractor_units_per_day.max(1),
+                crew_size: k.crew_size.max(1),
+                projects_per_firm: k.projects_per_firm.max(1),
+                new_projects_per_week: k.new_projects_per_week,
+                housing_waiting_threshold: k.housing_waiting_threshold,
+                shop_shortage_threshold: k.shop_shortage_threshold,
+                unemployment_threshold: k.unemployment_threshold,
+                daycare_waiting_threshold: k.daycare_waiting_threshold,
+                school_waiting_threshold: k.school_waiting_threshold,
+                small_housing: many(&mut ctx, &k.small_housing),
+                medium_housing: many(&mut ctx, &k.medium_housing),
+                shops: many(&mut ctx, &k.shops),
+                workplaces: many(&mut ctx, &k.workplaces),
+                daycare: one(&mut ctx, &k.daycare),
+                school: one(&mut ctx, &k.school),
+                cemetery: one(&mut ctx, &k.cemetery),
+                site: one(&mut ctx, &k.site),
+            }
+        }
+        None => {
+            ctx.err("construction.ron is missing");
+            return Err(ContentError {
+                problems: ctx.problems,
+            });
+        }
+    };
+
     if ctx.problems.is_empty() {
         Ok(Content {
             needs,
@@ -793,6 +840,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             crimes,
             technologies,
             demography,
+            construction,
         })
     } else {
         Err(ContentError {

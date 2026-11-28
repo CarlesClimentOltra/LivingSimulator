@@ -246,6 +246,37 @@ pub struct RegionTemplate {
     /// building id -> count
     #[serde(default)]
     pub required: BTreeMap<String, u16>,
+    /// Blocks per side the town may grow to (defaults to `blocks`: no growth).
+    #[serde(default)]
+    pub max_blocks: u16,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Construction {
+    pub labour_per_unit_cents: i64,
+    pub materials_per_unit_cents: i64,
+    pub foundation_per_tile: u32,
+    pub structure_per_tile_floor: u32,
+    pub roof_per_tile: u32,
+    pub road_per_tile: u32,
+    pub contractor_units_per_day: u32,
+    pub crew_size: u8,
+    pub projects_per_firm: u8,
+    pub new_projects_per_week: u8,
+    pub housing_waiting_threshold: u32,
+    pub shop_shortage_threshold: u32,
+    pub unemployment_threshold: u32,
+    pub daycare_waiting_threshold: u32,
+    pub school_waiting_threshold: u32,
+    pub small_housing: Vec<String>,
+    pub medium_housing: Vec<String>,
+    pub shops: Vec<String>,
+    pub workplaces: Vec<String>,
+    pub daycare: String,
+    pub school: String,
+    pub cemetery: String,
+    pub site: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -304,4 +335,5 @@ pub struct RawContent {
     pub crimes: Vec<Crime>,
     pub technologies: Vec<Technology>,
     pub demography: Option<crate::DemographyDef>,
+    pub construction: Option<Construction>,
 }
