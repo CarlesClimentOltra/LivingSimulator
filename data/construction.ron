@@ -25,7 +25,8 @@
     small_housing: ["terraced_houses", "house"],
     medium_housing: ["apartments"],
     shops: ["corner_shop"],
-    workplaces: ["office"],
+    // A lab when there is none yet; vertical farms once the technology is known.
+    workplaces: ["office", "research_lab", "vertical_farm"],
     daycare: "daycare",
     school: "school",
     cemetery: "cemetery",

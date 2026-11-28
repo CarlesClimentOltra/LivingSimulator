@@ -37,6 +37,7 @@ export interface RegionSummary {
   inmates: number;
   founded_at: number;
   parent: number | null;
+  technologies?: number;
 }
 
 export interface RegionInfo {
@@ -47,6 +48,8 @@ export interface RegionInfo {
   origin: [number, number];
   population: number;
   gateways: { building: number; to_region: number; to_name: string; node: number; x?: number; y?: number }[];
+  /** Known technologies (ids). */
+  techs?: string[];
 }
 
 export interface RegionStatic {
@@ -69,6 +72,8 @@ export interface RegionDynamic {
   incidents: Uint32Array;
   /** Police patrol legs: from building, to building, depart tick, arrive tick. */
   patrols: Uint32Array;
+  /** Bus legs (same layout), once the town has electric buses. */
+  buses: Uint32Array;
 }
 
 export type ToWorker =

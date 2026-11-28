@@ -61,7 +61,7 @@ worker.onmessage = (ev: MessageEvent<FromWorker>) => {
         city?.setOccupancy(ri, r.occupancy);
         city?.setSites(ri, r.sites);
         city?.setIncidents(ri, r.incidents, r.tick);
-        people?.setPatrols(r.id, r.patrols);
+        people?.setPatrols(r.id, r.patrols, r.buses);
         simTick = r.tick;
       }
       catchingUp = m.catchingUp;
@@ -213,6 +213,7 @@ function buildLabels() {
       h('strong', {}, s.info.name),
       h('span', {}, `${(m?.population ?? s.info.population).toLocaleString('en-US')} people`),
       sum ? h('span', { class: 'muted' }, `${(sum.unemployment_permille / 10).toFixed(1)}% unemployed · ${sum.under_construction} building sites`) : null,
+      sum?.technologies ? h('span', { class: 'muted' }, `${sum.technologies} new technologies`) : null,
       parent ? h('span', { class: 'muted' }, `founded by settlers from ${parent}`) : null,
     );
     el.addEventListener('click', () => {

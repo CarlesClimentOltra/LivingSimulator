@@ -68,7 +68,7 @@ pub enum Body {
     },
     /// Phase 7: a technology spreads.
     TechDiffusion {
-        tech: u16,
+        tech: String,
     },
     /// Newspaper item worth reporting in neighbouring towns.
     NewsItem {

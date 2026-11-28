@@ -17,7 +17,7 @@ use bincode::Options;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAGIC: &[u8; 4] = b"LSIM";
-pub const FORMAT_VERSION: u16 = 7;
+pub const FORMAT_VERSION: u16 = 8;
 pub const HEADER_LEN: usize = 4 + 2 + 32 + 1 + 2 + 4 + 32;
 
 #[repr(u8)]
@@ -183,6 +183,7 @@ pub fn migrate(from: u16, kind: Kind, mut payload: Vec<u8>) -> Result<Vec<u8>, S
             4 => crate::snapshot_v4::to_next(kind, payload)?,
             5 => crate::snapshot_v5::to_next(kind, payload)?,
             6 => crate::snapshot_v6::to_next(kind, payload)?,
+            7 => crate::snapshot_v7::to_next(kind, payload)?,
             _ => return Err(SnapshotError::UnsupportedFormat(v)),
         };
         v += 1;

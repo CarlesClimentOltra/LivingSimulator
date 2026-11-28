@@ -2040,7 +2040,7 @@ impl Region {
         else {
             return false;
         };
-        let hw = self.gateways[gi].highway_ticks;
+        let hw = self.highway_ticks(gi);
         let return_at = shift_end.max(t + 60) + hw;
         self.journal(a, t, JournalKind::WorkedAway, job.region, 0);
         self.set_place(a, NONE);

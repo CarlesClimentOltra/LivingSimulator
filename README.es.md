@@ -13,7 +13,9 @@ los inversores pagan edificios nuevos que los obreros levantan planta a planta, 
 calles nuevas hacia el campo. De vez en cuando alguien roba, entra en una casa o se pelea;
 la policía investiga, los tribunales juzgan y los condenados van a la cárcel (sin nada
 gráfico). Cuando demasiada gente no encuentra trabajo, unos colonos fundan **pueblos
-nuevos** al final de autopistas nuevas, y el mapa del mundo crece. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
+nuevos** al final de autopistas nuevas, y el mapa del mundo crece. La universidad y los
+laboratorios desarrollan **tecnología nueva** (autobuses eléctricos, placas solares, granjas
+verticales, trenes maglev…) que se extiende de pueblo en pueblo y cambia su vida. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
 observas.** Todos los visitantes ven la misma ciudad en el mismo momento, y sigue viviendo
 aunque nadie la mire.
 
@@ -43,6 +45,7 @@ aunque nadie la mire.
 - Mira cómo crece la ciudad: obras valladas, andamios y grúas, obreros con casco amarillo
   y un panel de *Construction* con cada proyecto, quién lo paga y cuánto falta. Haz clic en
   una obra para ver qué se está construyendo.
+- Sigue el **árbol tecnológico** en el panel de estadísticas y busca sus efectos en la calle.
 - Pulsa *World* para ver todos los pueblos en el mapa con sus datos; haz clic en uno para
   ir allí (empieza a simularse en tu navegador cuando llegas).
 - Lee el registro policial: incidentes marcados en el mapa, cinta policial, coches

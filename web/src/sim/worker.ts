@@ -178,7 +178,7 @@ interface ContentLite {
   activities: { kind: string }[];
 }
 let contentLite: ContentLite;
-const patrolInfo = new Map<number, { stations: number[]; targets: number[]; gateway: number }>();
+const patrolInfo = new Map<number, { stations: number[]; targets: number[]; gateway: number; buses: number }>();
 const PATROL_LEG = 16;
 
 function hashU(a: number, b: number): number {
@@ -214,7 +214,9 @@ function liveStatic(id: number): RegionStatic {
       if (d.roof !== 'None') targets.push(b);
     }
     const gateway = info.gateways.length ? info.gateways[0].building : -1;
-    patrolInfo.set(id, { stations, targets, gateway });
+    // Electric buses (Phase 7): one per ~1,200 people.
+    const buses = (info.techs ?? []).includes('electric_buses') ? Math.min(10, Math.ceil(info.population / 1200)) : 0;
+    patrolInfo.set(id, { stations, targets, gateway, buses });
     return {
       info,
       tiles: sim.tiles(id),
@@ -223,6 +225,18 @@ function liveStatic(id: number): RegionStatic {
       live: true,
     };
   }
+}
+
+/** Bus legs: buses drive between places all over town, a new leg every 20 ticks. */
+function busLegs(id: number, tick: number): Uint32Array {
+  const p = patrolInfo.get(id);
+  if (!p || !p.buses || !p.targets.length) return new Uint32Array(0);
+  const LEG = 20;
+  const leg = Math.floor(tick / LEG);
+  const at = (bus: number, l: number) => p.targets[hashU(bus * 104729 + id * 13, l) % p.targets.length];
+  const out = new Uint32Array(p.buses * PATROL_STRIDE);
+  for (let b = 0; b < p.buses; b++) out.set([at(b, leg - 1), at(b, leg), leg * LEG, leg * LEG + LEG - 1], b * PATROL_STRIDE);
+  return out;
 }
 
 /** Patrol legs for the current tick: cars on duty drive every PATROL_LEG ticks. */
@@ -303,9 +317,14 @@ function sendTick(catchingUp: boolean) {
     const incidents = sim.incidents(id);
     const tick = sim.tick(id);
     const legs = patrols(id, tick, agents, incidents);
-    regions.push({ id, tick, agents, occupancy, sites: sim.sites(id), incidents, patrols: legs });
+    const buses = busLegs(id, tick);
+    regions.push({ id, tick, agents, occupancy, sites: sim.sites(id), incidents, patrols: legs, buses });
     if (catchingUp) continue;
-    for (let i = 0; i < legs.length; i += PATROL_STRIDE) {
+    const all = new Uint32Array(legs.length + buses.length);
+    all.set(legs);
+    all.set(buses, legs.length);
+    for (let i = 0; i < all.length; i += PATROL_STRIDE) {
+      const legs = all;
       if (legs[i] === legs[i + 1]) continue;
       const key = `${id}/${routeKey(legs[i], legs[i + 1], true)}`;
       if (sentRoutes.has(key)) continue;
@@ -324,7 +343,7 @@ function sendTick(catchingUp: boolean) {
   lastSent = sim.tick(regionIds[0]);
   post(
     { type: 'tick', regions, routes, catchingUp },
-    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer, r.sites.buffer, r.incidents.buffer, r.patrols.buffer]), ...routes.map((r) => r.pts.buffer)],
+    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer, r.sites.buffer, r.incidents.buffer, r.patrols.buffer, r.buses.buffer]), ...routes.map((r) => r.pts.buffer)],
   );
 }
 

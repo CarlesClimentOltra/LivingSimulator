@@ -109,6 +109,9 @@ pub struct Region {
     due: Vec<u32>,
     #[serde(skip)]
     ready: bool,
+    /// Effects of the known technologies (derived from `systems.technology`).
+    #[serde(skip)]
+    pub tech: crate::systems::technology::TechMods,
 }
 
 impl Region {
@@ -150,6 +153,7 @@ impl Region {
             routes: RouteCache::default(),
             due: Vec::new(),
             ready: false,
+            tech: Default::default(),
         }
     }
 
@@ -163,6 +167,7 @@ impl Region {
             return;
         }
         self.roads.finalize();
+        self.refresh_tech();
         self.buildings.rebuild_index(content().tags.len());
         self.buildings.present = vec![0; self.buildings.len()];
         for a in 0..self.agents.len() {
@@ -290,6 +295,7 @@ impl Region {
                     name,
                     highway_ticks,
                 } => self.receive_road_built(m.src, *side, name, *highway_ticks),
+                Body::TechDiffusion { tech } => self.receive_tech(tech),
                 Body::Prisoner {
                     agent,
                     crime,
@@ -297,10 +303,7 @@ impl Region {
                 } => self.receive_prisoner(m.src, *agent, *crime, *release),
                 Body::RemoteWage { agent, net } => self.receive_remote_wage(*agent, *net),
                 // Later phases.
-                Body::Migration { .. }
-                | Body::MaterialShipment { .. }
-                | Body::TechDiffusion { .. }
-                | Body::NewsItem { .. } => {}
+                Body::Migration { .. } | Body::MaterialShipment { .. } | Body::NewsItem { .. } => {}
             }
         }
     }
@@ -386,6 +389,7 @@ impl Region {
         self.construction_daily(t);
         self.crime_daily(t);
         self.expansion_daily(t);
+        self.technology_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),
@@ -481,7 +485,12 @@ impl Region {
             * crate::roads::decis_per_tile(mode, crate::roads::RoadClass::Street);
         let road = self.routes.travel(&self.roads, mode, fa, ta);
         let overhead = if mode == Mode::Car { 1200 } else { 0 };
-        (access + road + overhead).div_ceil(600).max(1)
+        // Technology (Phase 7): buses and smart traffic make trips faster.
+        let k = match mode {
+            Mode::Walk => self.tech.walk,
+            Mode::Car => self.tech.car,
+        };
+        ((access + road) * k / 1000 + overhead).div_ceil(600).max(1)
     }
 
     pub fn manhattan(&self, a: BuildingId, b: BuildingId) -> u32 {

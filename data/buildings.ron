@@ -180,4 +180,15 @@
     // phase by phase, scaffolding and cranes. Never placed by zoning.
     (id: "construction_site", name: "Construction site", lot: Small, size: (1, 1), floors: 1,
      tags: ["site"], color: "#a1887f", roof_color: "#8d6e63", roof: None),
+    // Phase 7: research and technology.
+    (id: "research_lab", name: "Research lab", lot: Medium, size: (6, 5), floors: 3,
+     jobs: {"researcher": 16, "manager": 1}, tags: ["lab", "office"],
+     name_patterns: ["{place} Research Institute", "{family} Labs"],
+     firm: (kind: Office, export_per_shift_cents: 26000),
+     color: "#e0f7fa", roof_color: "#00838f"),
+    (id: "vertical_farm", name: "Vertical farm", lot: Medium, size: (5, 5), floors: 7,
+     jobs: {"farmer": 10, "manager": 1}, tags: ["farm_tower"],
+     name_patterns: ["{place} Greens", "{family} Vertical Farm"],
+     firm: (kind: Farm, good: "food", per_shift: 160),
+     color: "#a5d6a7", roof_color: "#2e7d32"),
 ]

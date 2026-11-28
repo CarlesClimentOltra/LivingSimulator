@@ -763,7 +763,9 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
         .map(|t| TechDef {
             id: t.id.clone(),
             name: t.name.clone(),
-            cost_points: t.cost_points,
+            description: t.description.clone(),
+            effects: t.effects.clone(),
+            cost_points: t.cost_points.max(1),
             requires: t
                 .requires
                 .iter()
@@ -862,6 +864,26 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
         }
     };
 
+    let research = match &raw.research {
+        Some(r) => ResearchDef {
+            points_per_shift: r
+                .points_per_shift
+                .iter()
+                .filter_map(|(p, n)| match find(&profession_ids, p) {
+                    Some(i) => Some((i, *n)),
+                    None => {
+                        ctx.err(format!("research.ron: unknown profession `{p}`"));
+                        None
+                    }
+                })
+                .collect(),
+            adoption_days: r.adoption_days,
+        },
+        None => {
+            ctx.err("research.ron is missing");
+            ResearchDef::default()
+        }
+    };
     let Some(justice) = raw.justice.clone() else {
         ctx.err("justice.ron is missing");
         return Err(ContentError {
@@ -887,6 +909,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             demography,
             construction,
             justice,
+            research,
         })
     } else {
         Err(ContentError {

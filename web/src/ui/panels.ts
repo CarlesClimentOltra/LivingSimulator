@@ -138,6 +138,13 @@ export interface ConstructionStats {
   map_tiles: number;
 }
 
+export interface TechStats {
+  points_per_day: number;
+  researchers: number;
+  tree: { id: string; name: string; description: string; cost_points: number; status: string; progress_permille: number; requires: string[]; when: string }[];
+  history: number[];
+}
+
 export interface SafetyStats {
   by_crime_30d: [string, number][];
   solved_30d: number;
@@ -175,6 +182,7 @@ export interface Stats {
   demography: DemographyStats;
   construction: ConstructionStats;
   safety?: SafetyStats;
+  technology?: TechStats;
 }
 
 export interface NewsLine {
@@ -416,6 +424,7 @@ export function renderStats(el: HTMLElement, s: Stats) {
       stat('avg savings', money(s.avg_money_cents, 0)),
     ),
     ...constructionSection(s.construction),
+    ...techSection(s.technology),
     ...safetySection(s.safety),
     ...economySection(s.economy),
     ...demographySection(s.demography),
@@ -426,6 +435,45 @@ let onSite: ((building: number) => void) | null = null;
 /** Called when a construction project is clicked in the stats panel. */
 export function setSiteHandler(f: (building: number) => void) {
   onSite = f;
+}
+
+function techSection(t: TechStats | undefined): HTMLElement[] {
+  if (!t) return [];
+  const icon: Record<string, string> = { known: '✓', researching: '⚗', adopting: '⇄', available: '○', locked: '·' };
+  const label: Record<string, string> = {
+    known: 'known',
+    researching: 'being researched',
+    adopting: 'arriving from a neighbouring town',
+    available: 'can be researched',
+    locked: 'needs',
+  };
+  const rows = t.tree.map((x) =>
+    h(
+      'div',
+      { class: `tech ${x.status}` },
+      h('div', { class: 'tech-head' }, h('span', { class: 'tech-icon' }, icon[x.status] ?? ''), h('strong', {}, x.name)),
+      x.status === 'researching' ? h('div', { class: 'progress' }, h('div', { style: `width:${x.progress_permille / 10}%` })) : null,
+      h(
+        'div',
+        { class: 'muted small' },
+        x.status === 'locked' ? `${label.locked} ${x.requires.join(' and ')}` : label[x.status] + (x.when ? ` · ${x.when}` : '') + (x.status === 'researching' ? ` · ${Math.round(x.progress_permille / 10)}%` : ''),
+      ),
+      h('div', { class: 'small' }, x.description),
+    ),
+  );
+  const known = t.tree.filter((x) => x.status === 'known').length;
+  return [
+    h('h3', {}, 'Technology'),
+    h(
+      'div',
+      { class: 'stats-grid' },
+      stat('known', `${known} of ${t.tree.length}`),
+      stat('research points / day', t.points_per_day),
+      stat('researchers', t.researchers),
+    ),
+    t.researchers === 0 ? h('p', { class: 'muted small' }, 'No university or research lab here: new technology arrives from neighbouring towns.') : null,
+    ...rows,
+  ].filter(Boolean) as HTMLElement[];
 }
 
 function safetySection(s: SafetyStats | undefined): HTMLElement[] {

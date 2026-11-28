@@ -109,6 +109,7 @@ impl Sim {
         Ok(serde_json::json!({
             "id": r.id, "name": r.name(), "width": r.map.width, "height": r.map.height,
             "origin": [r.origin.0, r.origin.1], "gateways": gateways, "population": r.population(),
+            "techs": r.systems.technology.researched,
         })
         .to_string())
     }

@@ -600,24 +600,33 @@ impl Region {
         let spec = c.buildings[self.buildings.def[work as usize] as usize]
             .firm
             .clone();
+        // Research (Phase 7): professors and researchers.
+        let profession = self.agents.profession[i];
+        self.research_shift(profession);
         if let Some(spec) = spec {
+            // Technology multiplies production (‰).
+            let k = self.tech.output_of(spec.kind) as i64;
             match spec.kind {
                 FirmKind::Farm => {
                     let fm = &mut self.systems.economy.firms[f as usize];
-                    fm.stock = fm.stock.saturating_add(spec.per_shift);
+                    fm.stock = fm
+                        .stock
+                        .saturating_add((spec.per_shift as i64 * k / 1000) as u32);
                 }
                 FirmKind::Factory => {
                     let value = spec.per_shift as i64
                         * spec
                             .good
                             .map(|g| c.goods[g as usize].base_price_cents)
-                            .unwrap_or(0);
+                            .unwrap_or(0)
+                        * k
+                        / 1000;
                     self.transfer(Account::World, Account::Firm(f), value);
                     self.systems.economy.firms[f as usize].revenue_today += value;
                     self.systems.economy.today.exports += value;
                 }
                 FirmKind::Office => {
-                    let value = spec.export_per_shift_cents;
+                    let value = spec.export_per_shift_cents * k / 1000;
                     self.transfer(Account::World, Account::Firm(f), value);
                     self.systems.economy.firms[f as usize].revenue_today += value;
                     self.systems.economy.today.exports += value;
@@ -1074,7 +1083,8 @@ impl Region {
             .iter()
             .filter(|f| f.kind == FirmKind::Public)
             .count() as i64;
-        let total = public * econ.maintenance_per_building_cents;
+        let total =
+            public * econ.maintenance_per_building_cents * self.tech.maintenance as i64 / 1000;
         let builders: Vec<u32> = self
             .systems
             .economy

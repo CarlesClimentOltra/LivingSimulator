@@ -6,7 +6,10 @@
 //! * format 4: `RegionV5<ConstructionV4, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6>`
 //! * format 5: `RegionV5<ConstructionState, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6>`
 //! * format 6: `RegionV5<ConstructionState, CrimeState, JusticeState, ContentIds, ExpansionV6>`
-//! * format 7: `RegionV5<…, ContentIds, ExpansionState>` (= `Region`)
+//! * format 7: `RegionV5<…, ContentIds, ExpansionState, TechnologyV7>`
+//! * format 8: `RegionV5<…, ContentIds, ExpansionState, TechnologyState>` (= `Region`)
+//!
+//! Formats 4–6 also end with `TechnologyV7`.
 //!
 //! Fields not listed as generic are decoded with today's types; if one of them changes,
 //! freeze it here before changing it.
@@ -20,7 +23,7 @@ use crate::names::{NamePool, NameRef};
 use crate::region::{AwayInfo, DailyCounters, Gateway, NewsItem, VisitorInfo};
 use crate::roads::RoadGraph;
 use crate::snapshot::{from_bytes, to_bytes, Kind, SnapshotError};
-use crate::systems::{construction, crime, demography, economy, justice, technology};
+use crate::systems::{construction, crime, demography, economy, justice};
 use crate::time::Tick;
 use crate::world::IntercityGraph;
 use serde::{Deserialize, Serialize};
@@ -62,6 +65,14 @@ pub struct JusticeV5 {
     pub inmates: Vec<InmateV5>,
 }
 
+/// Phases 1–6 technology stub (frozen in format 8).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TechnologyV7 {
+    pub points: u64,
+    pub researched: Vec<u16>,
+    pub current: Option<u16>,
+}
+
 /// Phases 1–5 expansion stub (frozen in format 7).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExpansionV6 {
@@ -81,18 +92,18 @@ pub struct ContentIdsV5 {
 // ---- generic layout
 
 #[derive(Serialize, Deserialize)]
-pub struct SystemsV5<Co, Cr, Ju, Ex> {
+pub struct SystemsV5<Co, Cr, Ju, Ex, Te> {
     pub economy: economy::EconomyState,
     pub demography: demography::DemographyState,
     pub construction: Co,
     pub crime: Cr,
     pub justice: Ju,
     pub expansion: Ex,
-    pub technology: technology::TechnologyState,
+    pub technology: Te,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct RegionV5<Co, Cr, Ju, Ids, Ex> {
+pub struct RegionV5<Co, Cr, Ju, Ids, Ex, Te> {
     pub id: u16,
     pub seed: u64,
     pub template: u16,
@@ -115,7 +126,7 @@ pub struct RegionV5<Co, Cr, Ju, Ids, Ex> {
     pub news: Vec<NewsItem>,
     pub outbox: Vec<Message>,
     pub out_seq: u32,
-    pub systems: SystemsV5<Co, Cr, Ju, Ex>,
+    pub systems: SystemsV5<Co, Cr, Ju, Ex, Te>,
     pub events: u64,
     pub content_ids: Ids,
 }
@@ -128,18 +139,19 @@ pub struct WorldV5<R> {
     pub intercity: IntercityGraph,
 }
 
-impl<Co, Cr, Ju, Ids, Ex> RegionV5<Co, Cr, Ju, Ids, Ex> {
+impl<Co, Cr, Ju, Ids, Ex, Te> RegionV5<Co, Cr, Ju, Ids, Ex, Te> {
     /// Rebuilds the region with new construction, crime, justice, content-id and expansion
     /// parts.
     #[allow(clippy::too_many_arguments)]
-    pub fn map_parts<Co2, Cr2, Ju2, Ids2, Ex2>(
+    pub fn map_parts<Co2, Cr2, Ju2, Ids2, Ex2, Te2>(
         self,
         co: impl FnOnce(Co) -> Co2,
         cr: impl FnOnce(Cr) -> Cr2,
         ju: impl FnOnce(Ju) -> Ju2,
         ids: impl FnOnce(Ids) -> Ids2,
         ex: impl FnOnce(Ex) -> Ex2,
-    ) -> RegionV5<Co2, Cr2, Ju2, Ids2, Ex2> {
+        te: impl FnOnce(Te) -> Te2,
+    ) -> RegionV5<Co2, Cr2, Ju2, Ids2, Ex2, Te2> {
         let s = self.systems;
         RegionV5 {
             id: self.id,
@@ -171,7 +183,7 @@ impl<Co, Cr, Ju, Ids, Ex> RegionV5<Co, Cr, Ju, Ids, Ex> {
                 crime: cr(s.crime),
                 justice: ju(s.justice),
                 expansion: ex(s.expansion),
-                technology: s.technology,
+                technology: te(s.technology),
             },
             events: self.events,
             content_ids: ids(self.content_ids),
@@ -179,7 +191,14 @@ impl<Co, Cr, Ju, Ids, Ex> RegionV5<Co, Cr, Ju, Ids, Ex> {
     }
 }
 
-type V5 = RegionV5<construction::ConstructionState, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6>;
+type V5 = RegionV5<
+    construction::ConstructionState,
+    CrimeV5,
+    JusticeV5,
+    ContentIdsV5,
+    ExpansionV6,
+    TechnologyV7,
+>;
 /// Format 6 (Phase 5).
 pub type V6 = RegionV5<
     construction::ConstructionState,
@@ -187,6 +206,7 @@ pub type V6 = RegionV5<
     justice::JusticeState,
     ContentIds,
     ExpansionV6,
+    TechnologyV7,
 >;
 
 fn upgrade(r: V5) -> V6 {
@@ -204,6 +224,7 @@ fn upgrade(r: V5) -> V6 {
             goods: ids.goods,
             crimes: ContentIds::current().crimes,
         },
+        |x| x,
         |x| x,
     )
 }

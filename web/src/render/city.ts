@@ -489,9 +489,12 @@ export class City {
     const col = new THREE.Color();
     let bi = 0, gi = 0, fi = 0;
     const trees: [number, number, number][] = [];
+    const panels: THREE.Matrix4[] = [];
 
     statics.forEach((s, ri) => {
       const { width: w, height: h, origin } = s.info;
+      // Solar panels on most flat roofs once the town has the technology (Phase 7).
+      const solar = (s.info.techs ?? []).includes('solar_roofs');
       const [ox, oz] = origin;
       // Ground.
       const ground = new THREE.Mesh(groundQuad(w, h), new THREE.MeshLambertMaterial({ map: groundTexture(s.tiles, w, h) }));
@@ -526,6 +529,9 @@ export class City {
           m.compose(new THREE.Vector3(cx, height, cz), q, new THREE.Vector3(bw * 0.97, 0.08, bd * 0.97));
           roofsF.setMatrixAt(fi, m);
           roofsF.setColorAt(fi++, col);
+          if (solar && hash(b, ri, 31) < 0.6) {
+            panels.push(new THREE.Matrix4().compose(new THREE.Vector3(cx, height + 0.08, cz), q, new THREE.Vector3(bw * 0.7, 0.03, bd * 0.7)));
+          }
         }
       }
       // Trees: parks, gardens and countryside.
@@ -548,7 +554,14 @@ export class City {
       im.computeBoundingSphere();
       this.layer.add(im);
     }
-    this.roofs = [roofsG, roofsF];
+    // Solar panels (Phase 7): dark glass over part of the flat roofs.
+    const solarPanels = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), new THREE.MeshLambertMaterial({ color: 0x27477d }), Math.max(1, panels.length));
+    panels.forEach((pm, k) => solarPanels.setMatrixAt(k, pm));
+    solarPanels.count = panels.length;
+    solarPanels.instanceMatrix.needsUpdate = true;
+    solarPanels.computeBoundingSphere();
+    this.layer.add(solarPanels);
+    this.roofs = [roofsG, roofsF, solarPanels];
     this.statics = statics;
     this.slabs = new THREE.InstancedMesh(
       new THREE.BoxGeometry(1, 1, 1),
@@ -603,12 +616,34 @@ export class City {
       m.rotation.y = -Math.atan2(bz - az, bx - ax);
       this.layer.add(m);
     };
+    // Maglev (Phase 7): a white elevated track beside highways whose towns both have it.
+    const railMat = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
+    const maglev = (id: number) => (statics.find((x) => x.info.id === id)?.info.techs ?? []).includes('maglev');
+    const rail = (ax: number, az: number, bx: number, bz: number) => {
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.5) return;
+      const ang = -Math.atan2(bz - az, bx - ax);
+      const nx = -(bz - az) / len, nz = (bx - ax) / len;
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(len, 0.18, 0.7), railMat);
+      beam.position.set((ax + bx) / 2 + nx * 2.2, 1.1, (az + bz) / 2 + nz * 2.2);
+      beam.rotation.y = ang;
+      this.layer.add(beam);
+      for (let d = 0; d < len; d += 12) {
+        const p = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.1, 0.25), railMat);
+        p.position.set(ax + ((bx - ax) * d) / len + nx * 2.2, 0.55, az + ((bz - az) * d) / len + nz * 2.2);
+        this.layer.add(p);
+      }
+    };
     for (const hw of this.highways) {
       const a = exit(hw.a, hw.b);
       const b = exit(hw.b, hw.a);
       if (!a || !b) continue;
       strip(a.x, a.z, b.x, a.z);
       strip(b.x, a.z, b.x, b.z);
+      if (maglev(hw.a) && maglev(hw.b)) {
+        rail(a.x, a.z, b.x, a.z);
+        rail(b.x, a.z, b.x, b.z);
+      }
     }
   }
 
