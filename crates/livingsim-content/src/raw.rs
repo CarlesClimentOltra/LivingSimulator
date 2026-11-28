@@ -336,11 +336,23 @@ pub struct Crime {
 pub struct Technology {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub description: String,
     pub cost_points: u64,
     #[serde(default)]
     pub requires: Vec<String>,
     #[serde(default)]
     pub unlocks: Vec<String>,
+    #[serde(default)]
+    pub effects: Vec<crate::TechEffect>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Research {
+    /// profession id -> research points per shift.
+    pub points_per_shift: BTreeMap<String, u32>,
+    pub adoption_days: u16,
 }
 
 /// Every file of `/data`, parsed but not yet validated.
@@ -362,4 +374,5 @@ pub struct RawContent {
     pub demography: Option<crate::DemographyDef>,
     pub construction: Option<Construction>,
     pub justice: Option<crate::JusticeDef>,
+    pub research: Option<Research>,
 }

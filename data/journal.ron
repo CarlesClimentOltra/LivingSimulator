@@ -88,6 +88,8 @@
         "arrest": ("Arrest", "Police arrested a suspect in the {crime_lower} at {place}."),
         "verdict": ("Sentenced", "A court sentenced the author of a {crime_lower} at {place} to {n} days in jail."),
         "acquittal": ("Acquitted", "A court acquitted the suspect in the {crime_lower} at {place} for lack of evidence."),
+        "breakthrough": ("Breakthrough", "Researchers in {city} have developed {place}."),
+        "tech_adopted": ("New technology", "{city} has adopted {place}, developed in a neighbouring town."),
         "town_founded": ("A new town", "Settlers from {city} have founded {place}, a new town down a new highway."),
         "homicide": ("Tragedy in {city}", "{place} has died in a violent incident. Police have opened a murder investigation."),
     },

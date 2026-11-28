@@ -556,10 +556,12 @@ pub enum NewsKind {
     Acquittal = 27,
     Homicide = 28,
     TownFounded = 29,
+    Breakthrough = 30,
+    TechAdopted = 31,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 30] = [
+    pub const ALL: [NewsKind; 32] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
@@ -590,6 +592,8 @@ impl NewsKind {
         NewsKind::Acquittal,
         NewsKind::Homicide,
         NewsKind::TownFounded,
+        NewsKind::Breakthrough,
+        NewsKind::TechAdopted,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -623,6 +627,8 @@ impl NewsKind {
             NewsKind::Acquittal => "acquittal",
             NewsKind::Homicide => "homicide",
             NewsKind::TownFounded => "town_founded",
+            NewsKind::Breakthrough => "breakthrough",
+            NewsKind::TechAdopted => "tech_adopted",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -820,14 +826,41 @@ pub struct JusticeDef {
     pub move_after_burglary_permille: u16,
 }
 
+/// What a technology changes (Phase 7). Times and costs are ‰ of today's (750 = 25%
+/// less); outputs are ‰ of today's (1250 = 25% more).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TechEffect {
+    /// Trips on foot and by bus.
+    WalkTime(u16),
+    /// Trips by car.
+    CarTime(u16),
+    /// Driving between towns.
+    HighwayTime(u16),
+    /// Running costs of public buildings.
+    Maintenance(u16),
+    /// Production of one kind of business.
+    Output(FirmKind, u16),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TechDef {
     pub id: String,
     pub name: String,
+    pub description: String,
     pub cost_points: u64,
     pub requires: Vec<u16>,
-    /// Buildings unlocked (indices).
+    /// Buildings unlocked (indices): nobody builds them before.
     pub unlocks: Vec<u16>,
+    pub effects: Vec<TechEffect>,
+}
+
+/// Research and the spread of technology (`data/research.ron`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ResearchDef {
+    /// (profession, research points per shift).
+    pub points_per_shift: Vec<(u16, u32)>,
+    /// Days a town takes to adopt a technology a neighbouring town has.
+    pub adoption_days: u16,
 }
 
 /// The compiled, validated content of `/data`.
@@ -846,6 +879,7 @@ pub struct Content {
     pub goods: Vec<GoodDef>,
     pub crimes: Vec<CrimeDef>,
     pub technologies: Vec<TechDef>,
+    pub research: ResearchDef,
     pub demography: DemographyDef,
     pub construction: ConstructionDef,
     pub justice: JusticeDef,

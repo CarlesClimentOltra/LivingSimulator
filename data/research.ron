@@ -1,0 +1,7 @@
+// Research (Phase 7). Points per shift by profession; the university's professors and the
+// researchers of research labs do it. Towns without research adopt a technology some days
+// after a neighbouring town gets it.
+(
+    points_per_shift: {"professor": 20, "researcher": 30},
+    adoption_days: 20,
+)

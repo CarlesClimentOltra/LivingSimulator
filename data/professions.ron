@@ -10,6 +10,7 @@
     (id: "factory_worker",  name: "Factory worker",   wage_per_shift_cents: 12000, schedules: ["early_shift", "late_shift", "night_shift"], education: 1),
     (id: "warehouse_worker",name: "Warehouse worker", wage_per_shift_cents: 11000, schedules: ["early_shift", "late_shift"]),
     (id: "teacher",         name: "Teacher",          wage_per_shift_cents: 15500, schedules: ["teacher_day"], min_age: 23, education: 3),
+    (id: "researcher",      name: "Researcher",       wage_per_shift_cents: 21000, schedules: ["office_day"], min_age: 24, education: 3),
     (id: "professor",       name: "Professor",        wage_per_shift_cents: 19000, schedules: ["office_day"], min_age: 28, education: 3),
     (id: "doctor",          name: "Doctor",           wage_per_shift_cents: 26000, schedules: ["early_shift", "late_shift", "night_shift"], min_age: 26, education: 3),
     (id: "nurse",           name: "Nurse",            wage_per_shift_cents: 14500, schedules: ["early_shift", "late_shift", "night_shift"], min_age: 21, education: 3),

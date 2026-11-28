@@ -1,8 +1,35 @@
 // Technology tree (Phase 7). The world starts with present-day technology.
+//
+// Towns with a university or a research lab earn research points (research.ron) and work
+// on the first technology they can (all its requirements known, in this order). A finished
+// technology spreads to neighbouring towns, which adopt it some days later.
+//
+// Effects: WalkTime / CarTime / HighwayTime / Maintenance are ‰ of today's time or cost
+// (750 = 25% less); Output(kind, ‰) multiplies what a kind of business produces.
+// unlocks: buildings nobody builds before the technology is known.
 [
-    (id: "electric_buses", name: "Electric buses", cost_points: 50000),
-    (id: "solar_roofs", name: "Solar roofs", cost_points: 80000),
-    (id: "vertical_farms", name: "Vertical farms", cost_points: 150000, requires: ["solar_roofs"]),
-    (id: "smart_traffic", name: "Smart traffic lights", cost_points: 120000, requires: ["electric_buses"]),
-    (id: "maglev", name: "Maglev intercity rail", cost_points: 600000, requires: ["smart_traffic"]),
+    (id: "electric_buses", name: "Electric buses", cost_points: 40000,
+     description: "Quiet buses on every main street: trips without a car are faster.",
+     effects: [WalkTime(750)]),
+    (id: "solar_roofs", name: "Solar roofs", cost_points: 60000,
+     description: "Solar panels on flat roofs cut the running costs of public buildings.",
+     effects: [Maintenance(700)]),
+    (id: "precision_farming", name: "Precision farming", cost_points: 60000,
+     description: "Sensors and drones in the fields: farms produce more food.",
+     effects: [Output(Farm, 1250)]),
+    (id: "smart_traffic", name: "Smart traffic lights", cost_points: 100000, requires: ["electric_buses"],
+     description: "Traffic lights that talk to each other: driving across town is faster.",
+     effects: [CarTime(850)]),
+    (id: "telework", name: "Telework", cost_points: 100000, requires: ["solar_roofs"],
+     description: "Better networks: offices sell more of their services abroad.",
+     effects: [Output(Office, 1150)]),
+    (id: "vertical_farms", name: "Vertical farms", cost_points: 150000, requires: ["solar_roofs", "precision_farming"],
+     description: "Food grown in towers in the middle of town.",
+     unlocks: ["vertical_farm"]),
+    (id: "automated_factories", name: "Automated factories", cost_points: 200000, requires: ["telework"],
+     description: "Robots on the production lines: factories make more.",
+     effects: [Output(Factory, 1300)]),
+    (id: "maglev", name: "Maglev intercity rail", cost_points: 500000, requires: ["smart_traffic"],
+     description: "Magnetic trains between towns: trips to other towns take half the time.",
+     effects: [HighwayTime(500)]),
 ]
