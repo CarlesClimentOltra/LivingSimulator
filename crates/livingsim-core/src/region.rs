@@ -285,6 +285,11 @@ impl Region {
                 } => self.receive_job_accept(m.src, *firm, *agent, *profession, *schedule),
                 Body::JobEnded { firm, agent } => self.receive_job_ended(m.src, *firm, *agent),
                 Body::WorkerLeft { firm, agent } => self.receive_worker_left(m.src, *firm, *agent),
+                Body::RoadBuilt {
+                    side,
+                    name,
+                    highway_ticks,
+                } => self.receive_road_built(m.src, *side, name, *highway_ticks),
                 Body::Prisoner {
                     agent,
                     crime,
@@ -294,7 +299,6 @@ impl Region {
                 // Later phases.
                 Body::Migration { .. }
                 | Body::MaterialShipment { .. }
-                | Body::RoadBuilt { .. }
                 | Body::TechDiffusion { .. }
                 | Body::NewsItem { .. } => {}
             }
@@ -381,6 +385,7 @@ impl Region {
         self.commuting_daily(t);
         self.construction_daily(t);
         self.crime_daily(t);
+        self.expansion_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),

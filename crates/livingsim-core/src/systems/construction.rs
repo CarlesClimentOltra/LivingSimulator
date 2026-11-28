@@ -206,20 +206,28 @@ impl Region {
         for gi in 0..self.gateways.len() {
             let node = self.gateways[gi].node as usize;
             let (gx, gy) = (self.roads.node_x[node], self.roads.node_y[node]);
-            let new_x = if gx <= dx { 0 } else { nw - 1 };
-            self.roads.node_x[node] = new_x;
+            // Which edge the exit was on (in shifted coordinates).
+            let horizontal = gx == dx || gx == ow - 1 + dx;
+            let (nx, ny) = if horizontal {
+                (if gx <= dx { 0 } else { nw - 1 }, gy)
+            } else {
+                (gx, if gy <= dx { 0 } else { nh - 1 })
+            };
+            self.roads.node_x[node] = nx;
+            self.roads.node_y[node] = ny;
             for e in 0..self.roads.edge_count() {
                 if self.roads.edge_a[e] as usize == node || self.roads.edge_b[e] as usize == node {
                     self.roads.edge_len[e] += dx;
                 }
             }
-            let (lo, hi) = if new_x < gx { (new_x, gx) } else { (gx, new_x) };
-            for x in lo..=hi {
-                self.map.set(x, gy, TileKind::Highway);
+            for y in gy.min(ny)..=gy.max(ny) {
+                for x in gx.min(nx)..=gx.max(nx) {
+                    self.map.set(x, y, TileKind::Highway);
+                }
             }
             // Move the exit building next to the new node.
             let bld = self.gateways[gi].building as usize;
-            let shift = new_x as i32 - gx as i32;
+            let (sx, sy) = (nx as i32 - gx as i32, ny as i32 - gy as i32);
             for y in
                 self.buildings.lot[bld][1]..self.buildings.lot[bld][1] + self.buildings.lot[bld][3]
             {
@@ -231,11 +239,14 @@ impl Region {
                     self.map.building[i] = NONE;
                 }
             }
-            let mv = |v: u16| (v as i32 + shift) as u16;
+            let mv = |v: u16, s: i32| (v as i32 + s) as u16;
             let bb = &mut self.buildings;
-            bb.x[bld] = mv(bb.x[bld]);
-            bb.lot[bld][0] = mv(bb.lot[bld][0]);
-            bb.door_x[bld] = mv(bb.door_x[bld]);
+            bb.x[bld] = mv(bb.x[bld], sx);
+            bb.y[bld] = mv(bb.y[bld], sy);
+            bb.lot[bld][0] = mv(bb.lot[bld][0], sx);
+            bb.lot[bld][1] = mv(bb.lot[bld][1], sy);
+            bb.door_x[bld] = mv(bb.door_x[bld], sx);
+            bb.door_y[bld] = mv(bb.door_y[bld], sy);
             for y in bb.lot[bld][1]..bb.lot[bld][1] + bb.lot[bld][3] {
                 for x in bb.lot[bld][0]..bb.lot[bld][0] + bb.lot[bld][2] {
                     let i = self.map.idx(x, y);
@@ -341,7 +352,7 @@ impl Region {
         ]
     }
 
-    fn block_developed(&self, bx: i32, by: i32) -> bool {
+    pub(crate) fn block_developed(&self, bx: i32, by: i32) -> bool {
         self.block_edges(bx, by)
             .iter()
             .filter(|(a, b)| self.edge_exists(*a, *b))
@@ -623,6 +634,12 @@ impl Region {
             }
         }
         couples_apart + young_at_home / 2
+    }
+
+    /// Households waiting for a home beyond the free ones.
+    pub(crate) fn housing_gap(&self, t: Tick) -> u32 {
+        self.households_waiting(t)
+            .saturating_sub(self.free_homes_count())
     }
 
     fn free_homes_count(&self) -> u32 {

@@ -17,6 +17,35 @@ use livingsim_content::{LotSize, NewsKind, RoofKind, Zone};
 pub enum Side {
     East,
     West,
+    North,
+    South,
+}
+
+impl Side {
+    pub fn code(self) -> u8 {
+        match self {
+            Side::East => 0,
+            Side::West => 1,
+            Side::North => 2,
+            Side::South => 3,
+        }
+    }
+    pub fn from_code(c: u8) -> Side {
+        match c {
+            0 => Side::East,
+            1 => Side::West,
+            2 => Side::North,
+            _ => Side::South,
+        }
+    }
+    pub fn opposite(self) -> Side {
+        match self {
+            Side::East => Side::West,
+            Side::West => Side::East,
+            Side::North => Side::South,
+            Side::South => Side::North,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -253,15 +282,15 @@ pub fn generate_region(
     // Highways towards neighbours.
     let mut gateway_nodes = Vec::new();
     for g in gateways {
-        let (i, x) = match g.side {
-            Side::East => (nb, size - 1),
-            Side::West => (0, 0),
+        let (from, gx, gy) = match g.side {
+            Side::East => (nid(nb, cb), size - 1, line(cb)),
+            Side::West => (nid(0, cb), 0, line(cb)),
+            Side::North => (nid(cb, 0), line(cb), 0),
+            Side::South => (nid(cb, nb), line(cb), size - 1),
         };
-        let from = nid(i, cb);
-        let gx = x;
-        let gy = line(cb);
         let n = r.roads.add_node(gx, gy);
-        let len = (gx as i32 - line(i) as i32).unsigned_abs() as u16;
+        let len = (gx as i32 - r.roads.node_x[from as usize] as i32).unsigned_abs() as u16
+            + (gy as i32 - r.roads.node_y[from as usize] as i32).unsigned_abs() as u16;
         r.roads.add_edge(from, n, len, RoadClass::Highway);
         gateway_nodes.push(n);
     }
@@ -465,36 +494,9 @@ pub fn generate_region(
     }
 
     // ---- gateways
+    let _ = gateway_def.expect("data defines highway_exit");
     for (g, &node) in gateways.iter().zip(&gateway_nodes) {
-        let gx = r.roads.node_x[node as usize];
-        let gy = r.roads.node_y[node as usize];
-        let def = gateway_def.expect("data defines highway_exit");
-        let fx = match g.side {
-            Side::East => gx - 3,
-            Side::West => gx + 2,
-        };
-        let door = (fx + 1, gy);
-        let b = r
-            .buildings
-            .push(def, fx, gy + 1, 2, 2, [fx, gy + 1, 2, 2], door);
-        r.buildings.access_node[b as usize] = node;
-        r.buildings.access_tiles[b as usize] = 2;
-        r.buildings.street[b as usize] = cb as u16;
-        name_building(&mut r, &mut rng, b, style);
-        for y in gy + 1..gy + 3 {
-            for x in fx..fx + 2 {
-                let i = r.map.idx(x, y);
-                r.map.kind[i] = TileKind::Lot as u8;
-                r.map.building[i] = b;
-            }
-        }
-        r.gateways.push(Gateway {
-            building: b,
-            node,
-            to_region: g.to_region,
-            to_name: g.to_name.clone(),
-            highway_ticks: g.highway_ticks,
-        });
+        place_gateway(&mut r, &mut rng, g, node, cb as u16, style);
     }
     r.buildings.rebuild_index(c.tags.len());
 
@@ -600,6 +602,49 @@ fn place_building(
     r.buildings.access_node[b as usize] = access;
     r.buildings.access_tiles[b as usize] = tiles as u16;
     name_building(r, rng, b, style);
+}
+
+/// The highway exit building next to gateway node `node`, and the gateway record.
+pub(crate) fn place_gateway(
+    r: &mut Region,
+    rng: &mut Rng,
+    g: &GatewaySpec,
+    node: u32,
+    street: u16,
+    style: u16,
+) {
+    let c = content();
+    let def = c
+        .building("highway_exit")
+        .expect("data defines highway_exit");
+    let gx = r.roads.node_x[node as usize];
+    let gy = r.roads.node_y[node as usize];
+    // A 2x2 lot beside the highway, a little inside the map.
+    let (fx, fy, door) = match g.side {
+        Side::East => (gx - 3, gy + 1, (gx - 2, gy)),
+        Side::West => (gx + 2, gy + 1, (gx + 3, gy)),
+        Side::North => (gx + 1, gy + 2, (gx, gy + 3)),
+        Side::South => (gx + 1, gy - 3, (gx, gy - 2)),
+    };
+    let b = r.buildings.push(def, fx, fy, 2, 2, [fx, fy, 2, 2], door);
+    r.buildings.access_node[b as usize] = node;
+    r.buildings.access_tiles[b as usize] = 2;
+    r.buildings.street[b as usize] = street;
+    name_building(r, rng, b, style);
+    for y in fy..fy + 2 {
+        for x in fx..fx + 2 {
+            let i = r.map.idx(x, y);
+            r.map.kind[i] = TileKind::Lot as u8;
+            r.map.building[i] = b;
+        }
+    }
+    r.gateways.push(Gateway {
+        building: b,
+        node,
+        to_region: g.to_region,
+        to_name: g.to_name.clone(),
+        highway_ticks: g.highway_ticks,
+    });
 }
 
 pub(crate) fn name_building(r: &mut Region, rng: &mut Rng, b: BuildingId, style: u16) {
