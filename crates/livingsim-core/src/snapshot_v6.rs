@@ -13,10 +13,27 @@ fn upgrade(
     crate::systems::justice::JusticeState,
     crate::content_ids::ContentIds,
     ExpansionState,
+    crate::snapshot_v5::TechnologyV7,
 > {
     // Towns of the initial world: founded at 0, no parent; pressure starts from zero.
-    r.map_parts(|c| c, |c| c, |j| j, |i| i, |_| ExpansionState::default())
+    r.map_parts(
+        |c| c,
+        |c| c,
+        |j| j,
+        |i| i,
+        |_| ExpansionState::default(),
+        |t| t,
+    )
 }
+
+pub(crate) type V7 = crate::snapshot_v5::RegionV5<
+    crate::systems::construction::ConstructionState,
+    crate::systems::crime::CrimeState,
+    crate::systems::justice::JusticeState,
+    crate::content_ids::ContentIds,
+    ExpansionState,
+    crate::snapshot_v5::TechnologyV7,
+>;
 
 /// Format 6 → 7.
 pub fn to_next(kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {

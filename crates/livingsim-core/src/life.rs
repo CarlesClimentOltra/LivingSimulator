@@ -324,10 +324,11 @@ impl Region {
             return;
         };
         let g = self.gateways[gi].clone();
+        let hw = self.highway_ticks(gi);
         let next_window = (t / WINDOW + 1) * WINDOW;
-        let arrival = (t + g.highway_ticks).max(next_window);
+        let arrival = (t + hw).max(next_window);
         let leave_by = arrival + visit_minutes.max(60);
-        let return_at = leave_by + g.highway_ticks;
+        let return_at = leave_by + hw;
         let female = self.agents.flags[i] & flags::FEMALE != 0;
         let traveller = Traveller {
             agent: a,
@@ -679,7 +680,7 @@ impl Region {
                 }
             }
             if def.kind == ActivityKind::VisitRegion {
-                let hw = self.gateways[0].highway_ticks;
+                let hw = self.highway_ticks(0);
                 let needed = travel * 2 + dur + hw * 2 + WINDOW + 60;
                 if t + needed > free_until {
                     continue;

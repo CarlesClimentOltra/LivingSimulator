@@ -4,7 +4,9 @@
 //! generic [`RegionV5`](crate::snapshot_v5::RegionV5) with the frozen format-5 parts.
 
 use crate::snapshot::{from_bytes, to_bytes, Kind, SnapshotError};
-use crate::snapshot_v5::{ContentIdsV5, CrimeV5, ExpansionV6, JusticeV5, RegionV5, WorldV5};
+use crate::snapshot_v5::{
+    ContentIdsV5, CrimeV5, ExpansionV6, JusticeV5, RegionV5, TechnologyV7, WorldV5,
+};
 use crate::systems::construction;
 use serde::{Deserialize, Serialize};
 
@@ -32,8 +34,15 @@ pub struct ConstructionV4 {
     pub projects: Vec<ProjectV4>,
 }
 
-type V4 = RegionV5<ConstructionV4, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6>;
-type V5 = RegionV5<construction::ConstructionState, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6>;
+type V4 = RegionV5<ConstructionV4, CrimeV5, JusticeV5, ContentIdsV5, ExpansionV6, TechnologyV7>;
+type V5 = RegionV5<
+    construction::ConstructionState,
+    CrimeV5,
+    JusticeV5,
+    ContentIdsV5,
+    ExpansionV6,
+    TechnologyV7,
+>;
 
 fn upgrade(r: V4) -> V5 {
     // The stub never held projects. The growth ring is added on the first morning
@@ -43,6 +52,7 @@ fn upgrade(r: V4) -> V5 {
         |c| c,
         |j| j,
         |i| i,
+        |x| x,
         |x| x,
     )
 }

@@ -123,6 +123,29 @@ pub struct IncidentLine {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct TechLine {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub cost_points: u64,
+    /// known, researching, adopting, available, locked
+    pub status: String,
+    /// Progress (‰) while researching.
+    pub progress_permille: u32,
+    pub requires: Vec<String>,
+    /// When it became known, or when it will be adopted.
+    pub when: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct TechStats {
+    pub points_per_day: u64,
+    pub researchers: u32,
+    pub tree: Vec<TechLine>,
+    pub history: Vec<u64>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct SafetyStats {
     /// (crime name, incidents in the last 30 days).
     pub by_crime_30d: Vec<(String, u32)>,
@@ -198,6 +221,7 @@ pub struct RegionStats {
     pub demography: DemographyStats,
     pub construction: ConstructionStats,
     pub safety: SafetyStats,
+    pub technology: TechStats,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -702,6 +726,7 @@ impl Region {
             demography: self.demography_stats(),
             construction: self.construction_stats(),
             safety: self.safety_stats(),
+            technology: self.tech_stats(),
         };
         let mut by_act = vec![0u32; c.activities.len()];
         let mut needs = [0u64; livingsim_content::NEED_COUNT];
@@ -793,6 +818,11 @@ impl Region {
                     | NewsKind::Verdict
                     | NewsKind::Acquittal => self.building_name(n.subject),
                     NewsKind::TownFounded => self.region_label(n.subject as u16),
+                    NewsKind::Breakthrough | NewsKind::TechAdopted => c
+                        .technologies
+                        .get(n.subject as usize)
+                        .map(|t| t.name.to_lowercase())
+                        .unwrap_or_default(),
                     NewsKind::Homicide => {
                         format!("{} {}", self.names.get(n.subject), self.names.get(n.n))
                     }
@@ -1023,6 +1053,66 @@ impl Region {
             cost_cents: units as i64 * (k.labour_per_unit_cents + k.materials_per_unit_cents),
             workers_here: self.buildings.present.get(b as usize).copied().unwrap_or(0) as u32,
         })
+    }
+
+    pub fn tech_stats(&self) -> TechStats {
+        let c = content();
+        let s = &self.systems.technology;
+        let researchers = (0..self.agents.len())
+            .filter(|&a| {
+                let p = self.agents.profession[a];
+                p != u16::MAX
+                    && self.resident(a as u32)
+                    && c.research.points_per_shift.iter().any(|(x, _)| *x == p)
+            })
+            .count() as u32;
+        let tree = c
+            .technologies
+            .iter()
+            .map(|t| {
+                let known_at = s.researched.iter().position(|x| x == &t.id);
+                let ready = t
+                    .requires
+                    .iter()
+                    .all(|r| s.knows(&c.technologies[*r as usize].id));
+                let (status, when, progress) = if let Some(k) = known_at {
+                    ("known", format_when(s.researched_at[k]), 1000)
+                } else if let Some(at) = s.adopting.get(&t.id) {
+                    ("adopting", format_when(*at), 0)
+                } else if s.current.as_deref() == Some(t.id.as_str()) && researchers > 0 {
+                    (
+                        "researching",
+                        String::new(),
+                        (s.points * 1000 / t.cost_points.max(1)).min(999) as u32,
+                    )
+                } else if ready {
+                    ("available", String::new(), 0)
+                } else {
+                    ("locked", String::new(), 0)
+                };
+                TechLine {
+                    id: t.id.clone(),
+                    name: t.name.clone(),
+                    description: t.description.clone(),
+                    cost_points: t.cost_points,
+                    status: status.into(),
+                    progress_permille: progress,
+                    requires: t
+                        .requires
+                        .iter()
+                        .map(|r| c.technologies[*r as usize].name.clone())
+                        .collect(),
+                    when,
+                }
+            })
+            .collect();
+        TechStats {
+            points_per_day: s.history.iter().rev().take(7).sum::<u64>()
+                / s.history.len().clamp(1, 7) as u64,
+            researchers,
+            tree,
+            history: s.history.clone(),
+        }
     }
 
     pub fn safety_stats(&self) -> SafetyStats {

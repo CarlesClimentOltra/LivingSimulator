@@ -308,6 +308,15 @@ impl World {
         r.origin = origin;
         r.systems.expansion.founded_at = self.tick;
         r.systems.expansion.parent = Some(p);
+        // Settlers bring their town's technology with them.
+        let known = self.regions[p as usize]
+            .systems
+            .technology
+            .researched
+            .clone();
+        r.systems.technology.researched_at = vec![self.tick; known.len()];
+        r.systems.technology.researched = known;
+        r.refresh_tech();
         r.send(
             p,
             crate::messages::Body::RoadBuilt {

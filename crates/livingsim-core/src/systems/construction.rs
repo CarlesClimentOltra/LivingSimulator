@@ -566,11 +566,20 @@ impl Region {
             .last()
             .map(|h| h.unemployment_permille)
             .unwrap_or(0);
+        // Workplaces: offices, research labs, and buildings unlocked by technology.
+        let options: Vec<u16> = k
+            .workplaces
+            .iter()
+            .copied()
+            .filter(|d| self.building_unlocked(*d))
+            .collect();
         if unemployment >= k.unemployment_threshold
             && !active_of(self, Purpose::Jobs)
-            && !k.workplaces.is_empty()
+            && !options.is_empty()
         {
-            wants.push((Purpose::Jobs, k.workplaces[0]));
+            let pick =
+                keyed(self.seed, t as u64 / TICKS_PER_DAY as u64, 4, 0xC0) % options.len() as u64;
+            wants.push((Purpose::Jobs, options[pick as usize]));
         }
 
         for (purpose, def) in wants {
