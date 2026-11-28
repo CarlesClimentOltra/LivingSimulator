@@ -12,7 +12,9 @@ jobs, investors pay for new buildings and builders put them up, floor by floor, 
 streets are laid out into the farmland. Now and then someone steals, breaks into a home or
 starts a fight; the police investigate, courts judge and convicts go to jail (nothing
 graphic). When too many people cannot find work, settlers found **new towns** down new
-highways, and the world map grows. They follow their own
+highways, and the world map grows. The university and research labs develop **new
+technology** (electric buses, solar roofs, vertical farms, maglev trains…) that spreads
+from town to town and changes how they live. They follow their own
 needs and daily agendas, and nobody controls them. **You can only watch.** Every visitor
 sees the same city at the same moment, and it keeps living when nobody is looking.
 
@@ -40,6 +42,7 @@ sees the same city at the same moment, and it keeps living when nobody is lookin
 - Watch the town grow: fenced building sites, scaffolding and cranes, builders in yellow
   helmets, and a *Construction* panel with every project, who pays for it and how far it
   got. Click a site to see what is being built.
+- Follow the **technology tree** in the stats panel and spot its effects in the streets.
 - Press *World* to see every town on the map with its figures; click one to go there (it
   starts being simulated in your browser when you arrive).
 - Read the police log: incidents marked on the map, police tape, patrol cars, arrests,

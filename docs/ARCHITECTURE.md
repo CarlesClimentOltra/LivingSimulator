@@ -427,7 +427,7 @@ the others exist as **types and stubs** (compiling, no-op or minimal) from Phase
 | `crime`         | 5 | motive (honesty, temper, money trouble, conflict, record) → offences planned at 06:00, executed on the hour; neighbourhood safety |
 | `justice`       | 5 | evidence from witnesses and police shifts, arrests, fines, custody, trials, sentences, jail (or the neighbour's jail via `Prisoner` messages) |
 | `expansion`     | 6 | founding pressure (job seekers, people leaving, housing, no room left), new towns with settlers, highway exits (`RoadBuilt`) |
-| `technology`    | 7 | tech tree, research points, unlocks |
+| `technology`    | 7 | research points per shift, tech tree with data-driven effects and unlocks, `TechDiffusion` to neighbours (adopted after a delay) |
 | `news`          | 1→ | turns notable events into newspaper items (MVP: daily summary) |
 
 Crime and justice are represented in a **non-graphic** way: icons, a police cordon,
@@ -461,7 +461,7 @@ newspaper headlines. No blood, no gore.
   nothing moves on screen. Format 6 (Phase 5) replaces the crime and justice stubs and
   adds crime ids to the content ids; `snapshot_v5.rs` describes formats 4 to 6 with one
   generic struct and frozen parts. Format 7 (Phase 6) replaces the expansion stub
-  (`snapshot_v6.rs`). Formats 1–3 are not migrated (their content indices are
+  (`snapshot_v6.rs`) and format 8 (Phase 7) the technology stub (`snapshot_v7.rs`). Formats 1–3 are not migrated (their content indices are
   ambiguous); the runner regenerates the world instead.
 * `sim_version` changes on every engine/content change. A deploy with a new version
   **rebases** the world: the runner takes the latest checkpoint `≤ now`, migrates it, and

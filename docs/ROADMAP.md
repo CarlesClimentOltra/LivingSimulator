@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–6 are implemented; Phase 7 is next.
+> Status: **approved**. Phases 0–7 are implemented; Phase 8 is next.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -304,6 +304,24 @@ fills up over weeks; new buildings, vehicles and improvements appear in the city
 - Unlocks: building types, productivity modifiers, new vehicles/transport (e.g. buses,
   trams), energy upgrades.
 - `TechDiffusion` messages between regions.
+
+Implemented as:
+- **Research.** Professors and researchers earn points every shift (`data/research.ron`);
+  the city earns ~1,300 a day. A town works on the first technology of
+  `data/technologies.ron` whose requirements it knows. The 8-technology tree takes about
+  950 simulated days (some six real weeks); the first one arrives after about a month.
+- **Effects** (data-driven): faster trips on foot/by bus (electric buses) and by car
+  (smart traffic lights), faster driving between towns (maglev), cheaper public buildings
+  (solar roofs), more output from farms, offices and factories, and new building types
+  (`unlocks`: vertical farms; research labs can be built from the start). Stored by id,
+  so `/data` can grow freely.
+- **Diffusion.** A finished technology is sent to neighbouring towns (`TechDiffusion`),
+  which adopt it 20 days later and pass it on; towns without research rely on this.
+  Founded towns start with their parent's technology.
+- **Snapshot format 8** (technology state; `snapshot_v7.rs`).
+- **Visible:** a Technology section (tree, progress, points per day), electric buses on
+  the streets, solar panels on flat roofs, a white maglev line beside highways, vertical
+  farms and research labs built by the construction system, newspaper stories.
 
 ## Phase 8 — Big world (500k–1M inhabitants)
 
