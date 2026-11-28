@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–3 are implemented; Phase 4 is in progress.
+> Status: **approved**. Phases 0–4 are implemented; Phase 5 is next.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -207,6 +207,16 @@ Milestones:
    conservation, project completion and expansion.
 9. **UI.** A "Construction" panel with active projects and progress, building cards for
    sites, and newspaper stories (works start, inaugurations, new streets).
+
+Notes from the implementation:
+- Construction companies work in crews (`crew_size`, four builders per project); builders
+  without a project wait at the yard, so an oversized company loses money and lays people
+  off. Parks and cemeteries only need landscaping (the foundation phase).
+- Homes in new buildings are let by whoever paid for them: the municipal housing company,
+  the agency, or the investor (as a private landlord).
+- A new daycare or school takes in the children who were waiting for a place.
+- The generator builds more homes than the starting population needs, so a city first
+  grows shops, services and workplaces; housing follows when its population grows.
 
 ## Phase 5 — Crime and justice
 

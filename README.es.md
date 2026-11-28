@@ -8,7 +8,9 @@ trabajan, van al colegio, compran, comen fuera, ven la tele, duermen, pagan el a
 y visitan el pueblo de al lado. Hacen amigos, se enamoran, se casan, tienen o adoptan
 hijos, envejecen, enferman y acaban muriendo, y la gente del pueblo va a trabajar a la
 ciudad. Las empresas contratan, despiden y a veces quiebran, y el ayuntamiento cobra
-impuestos. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
+impuestos. Los pueblos **crecen**: cuando faltan viviendas, tiendas, guarderías o empleo,
+los inversores pagan edificios nuevos que los obreros levantan planta a planta, y se abren
+calles nuevas hacia el campo. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
 observas.** Todos los visitantes ven la misma ciudad en el mismo momento, y sigue viviendo
 aunque nadie la mire.
 
@@ -35,6 +37,9 @@ aunque nadie la mire.
   cámara la siga.
 - Haz clic en un edificio para ver quién está dentro y, si es un negocio, su dueño,
   precios, stock, plantilla y las cuentas de ayer.
+- Mira cómo crece la ciudad: obras valladas, andamios y grúas, obreros con casco amarillo
+  y un panel de *Construction* con cada proyecto, quién lo paga y cuánto falta. Haz clic en
+  una obra para ver qué se está construyendo.
 - Consulta la economía: paro, precio de una comida, alquileres y presupuesto municipal,
   con gráficas de los últimos 60 días.
 - Consulta las **estadísticas** de la ciudad y el **periódico** local, y cambia entre la
