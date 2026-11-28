@@ -703,13 +703,25 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
                     c.id
                 ));
             }
+            if c.loss_cents.1 < c.loss_cents.0 || c.hours.0 > 23 || c.hours.1 > 24 {
+                ctx.err(format!(
+                    "crimes.ron `{}`: loss_cents must be (min, max>=min) and hours within 0..=24",
+                    c.id
+                ));
+            }
             CrimeDef {
                 id: c.id.clone(),
                 name: c.name.clone(),
+                kind: c.kind,
                 severity: c.severity.clamp(1, 10),
                 min_sentence_days: c.sentence_days.0,
                 max_sentence_days: c.sentence_days.1,
-                base_permille: c.base_permille,
+                rate_per_100m_days: c.rate_per_100m_days,
+                loss_cents: c.loss_cents,
+                evidence: c.evidence.max(1),
+                clearance_permille: c.clearance_permille.min(1000),
+                cold_after_days: c.cold_after_days.max(1),
+                hours: c.hours,
             }
         })
         .collect();
@@ -824,6 +836,13 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
         }
     };
 
+    let Some(justice) = raw.justice.clone() else {
+        ctx.err("justice.ron is missing");
+        return Err(ContentError {
+            problems: ctx.problems,
+        });
+    };
+
     if ctx.problems.is_empty() {
         Ok(Content {
             needs,
@@ -841,6 +860,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             technologies,
             demography,
             construction,
+            justice,
         })
     } else {
         Err(ContentError {

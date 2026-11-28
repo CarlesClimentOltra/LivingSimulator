@@ -421,8 +421,8 @@ the others exist as **types and stubs** (compiling, no-op or minimal) from Phase
 | `economy`       | 2 | firms, wages, prices, rents, shop stock, farms, taxes, public budget |
 | `demography`    | 3 | couples, births, ageing, deaths, retirement, education |
 | `construction`  | 4 | weekly demand → lots or new streets → funder pays each phase → builder crews on site → opening (firm, landlord, news) |
-| `crime`         | 5 | motive model (traits × desperation × conflict), offences |
-| `justice`       | 5 | patrols, investigations, arrests, trials, sentences, jail |
+| `crime`         | 5 | motive (honesty, temper, money trouble, conflict, record) → offences planned at 06:00, executed on the hour; neighbourhood safety |
+| `justice`       | 5 | evidence from witnesses and police shifts, arrests, fines, custody, trials, sentences, jail (or the neighbour's jail via `Prisoner` messages) |
 | `expansion`     | 6 | new regions/cities founded, highways |
 | `technology`    | 7 | tech tree, research points, unlocks |
 | `news`          | 1→ | turns notable events into newspaper items (MVP: daily summary) |
@@ -455,7 +455,9 @@ newspaper headlines. No blood, no gore.
 * Format 5 (Phase 4) froze format 4 in `snapshot_v4.rs`: the construction stub is replaced
   by the real state. A migrated region adds its growth ring of empty land on its first
   morning (`bootstrap_construction`), shifting every coordinate and its world origin so
-  nothing moves on screen. Formats 1–3 are not migrated (their content indices are
+  nothing moves on screen. Format 6 (Phase 5) replaces the crime and justice stubs and
+  adds crime ids to the content ids; `snapshot_v5.rs` describes formats 4 and 5 with one
+  generic struct and frozen parts. Formats 1–3 are not migrated (their content indices are
   ambiguous); the runner regenerates the world instead.
 * `sim_version` changes on every engine/content change. A deploy with a new version
   **rebases** the world: the runner takes the latest checkpoint `≤ now`, migrates it, and

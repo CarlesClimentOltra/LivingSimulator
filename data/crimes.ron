@@ -1,8 +1,26 @@
 // Offences (Phase 5). Represented without graphic content: icons, police tape, newspaper.
+//
+// rate_per_100m_days: offences per 100 million adult-days for someone with an average
+// motive (honesty, temper, money troubles and a record raise or lower it). For a city of
+// ~7,500 adults: a few shopliftings a day, a burglary or a fight every few days, fraud about
+// once a month and a homicide roughly once every few real months.
+//
+// clearance_permille: share of cases with leads (as in real police statistics, most
+// burglaries are never solved); only those can be solved by witnesses and investigation.
 [
-    (id: "shoplifting", name: "Shoplifting", severity: 1, sentence_days: (0, 5), base_permille: 20),
-    (id: "burglary", name: "Burglary", severity: 4, sentence_days: (60, 400), base_permille: 5),
-    (id: "assault", name: "Fight", severity: 5, sentence_days: (30, 300), base_permille: 4),
-    (id: "fraud", name: "Fraud", severity: 4, sentence_days: (90, 700), base_permille: 2),
-    (id: "homicide", name: "Homicide", severity: 10, sentence_days: (3650, 9000), base_permille: 1),
+    (id: "shoplifting", name: "Shoplifting", kind: Shoplifting, severity: 1,
+     sentence_days: (0, 0), rate_per_100m_days: 26000, loss_cents: (500, 6000),
+     evidence: 6, clearance_permille: 250, cold_after_days: 5, hours: (9, 21)),
+    (id: "burglary", name: "Burglary", kind: Burglary, severity: 4,
+     sentence_days: (60, 400), rate_per_100m_days: 2600, loss_cents: (20000, 300000),
+     evidence: 30, clearance_permille: 150, cold_after_days: 45, hours: (1, 5)),
+    (id: "assault", name: "Fight", kind: Assault, severity: 5,
+     sentence_days: (30, 300), rate_per_100m_days: 1300, loss_cents: (0, 0),
+     evidence: 16, clearance_permille: 550, cold_after_days: 30, hours: (20, 2)),
+    (id: "fraud", name: "Fraud", kind: Fraud, severity: 4,
+     sentence_days: (90, 700), rate_per_100m_days: 300, loss_cents: (100000, 800000),
+     evidence: 50, clearance_permille: 400, cold_after_days: 120, hours: (10, 17)),
+    (id: "homicide", name: "Homicide", kind: Homicide, severity: 10,
+     sentence_days: (3650, 9000), rate_per_100m_days: 12, loss_cents: (0, 0),
+     evidence: 60, clearance_permille: 650, cold_after_days: 730, hours: (19, 3)),
 ]

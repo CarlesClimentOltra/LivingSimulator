@@ -10,7 +10,9 @@ hijos, envejecen, enferman y acaban muriendo, y la gente del pueblo va a trabaja
 ciudad. Las empresas contratan, despiden y a veces quiebran, y el ayuntamiento cobra
 impuestos. Los pueblos **crecen**: cuando faltan viviendas, tiendas, guarderías o empleo,
 los inversores pagan edificios nuevos que los obreros levantan planta a planta, y se abren
-calles nuevas hacia el campo. Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
+calles nuevas hacia el campo. De vez en cuando alguien roba, entra en una casa o se pelea;
+la policía investiga, los tribunales juzgan y los condenados van a la cárcel (sin nada
+gráfico). Siguen sus propias necesidades y agendas, y nadie los controla. **Tú solo
 observas.** Todos los visitantes ven la misma ciudad en el mismo momento, y sigue viviendo
 aunque nadie la mire.
 
@@ -40,6 +42,8 @@ aunque nadie la mire.
 - Mira cómo crece la ciudad: obras valladas, andamios y grúas, obreros con casco amarillo
   y un panel de *Construction* con cada proyecto, quién lo paga y cuánto falta. Haz clic en
   una obra para ver qué se está construyendo.
+- Lee el registro policial: incidentes marcados en el mapa, cinta policial, coches
+  patrulla, detenciones, juicios y quién está en la cárcel.
 - Consulta la economía: paro, precio de una comida, alquileres y presupuesto municipal,
   con gráficas de los últimos 60 días.
 - Consulta las **estadísticas** de la ciudad y el **periódico** local, y cambia entre la

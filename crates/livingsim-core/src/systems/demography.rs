@@ -188,7 +188,7 @@ const P_ORIENT: u64 = 0xDF;
 const P_MISC: u64 = 0xE0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Leaving {
+pub(crate) enum Leaving {
     Death,
     Emigration,
     MovedTown,
@@ -287,7 +287,7 @@ impl Region {
             .count()
     }
 
-    fn building_with_tag(
+    pub(crate) fn building_with_tag(
         &self,
         tag: &str,
         near: BuildingId,
@@ -319,7 +319,7 @@ impl Region {
     }
 
     /// Homes with room for one more household: building → free dwellings.
-    fn free_homes(&self) -> Vec<(BuildingId, u16)> {
+    pub(crate) fn free_homes(&self) -> Vec<(BuildingId, u16)> {
         let mut used = vec![0u16; self.buildings.len()];
         for h in 0..self.households.len() {
             if self.households.members[h] > 0 {
@@ -335,7 +335,10 @@ impl Region {
             .collect()
     }
 
-    fn take_free_home(free: &mut Vec<(BuildingId, u16)>, pick: u64) -> Option<BuildingId> {
+    pub(crate) fn take_free_home(
+        free: &mut Vec<(BuildingId, u16)>,
+        pick: u64,
+    ) -> Option<BuildingId> {
         if free.is_empty() {
             return None;
         }
@@ -349,7 +352,7 @@ impl Region {
     }
 
     /// Creates a household in `home` with a rental tenure (or ownership if wealthy).
-    fn new_household(&mut self, home: BuildingId, wealth: i64, key: u64) -> u32 {
+    pub(crate) fn new_household(&mut self, home: BuildingId, wealth: i64, key: u64) -> u32 {
         let c = content();
         let has_car = keyed(self.seed, key, 1, P_MISC) % 1000 < 600;
         let hh = self.households.push(home, has_car);
@@ -401,6 +404,8 @@ impl Region {
             + (self.buildings.door_y[home as usize] as i64 - cy).abs())
         .min(half * 2);
         let location = 1300 - 600 * dist / (half * 2);
+        // Unsafe blocks rent for less (Phase 5).
+        let location = location * self.safety_rent_factor(home) / 1000;
         let rent = if kind == TenureKind::Owner {
             0
         } else {
@@ -415,7 +420,7 @@ impl Region {
         hh
     }
 
-    fn move_to_household(&mut self, a: AgentId, hh: u32) {
+    pub(crate) fn move_to_household(&mut self, a: AgentId, hh: u32) {
         let i = a as usize;
         let old = self.agents.household[i];
         if old != NONE {
@@ -975,7 +980,7 @@ impl Region {
     }
 
     /// Leaves the current job (local or in another town) without a layoff entry.
-    fn quit_job(&mut self, a: AgentId) {
+    pub(crate) fn quit_job(&mut self, a: AgentId) {
         let i = a as usize;
         if let Some(job) = self.systems.demography.remote_jobs.remove(&a) {
             self.send(
@@ -1600,7 +1605,7 @@ impl Region {
     // ------------------------------------------------------------------ leaving
 
     /// Removes a person from the region: death, emigration or a move to another town.
-    fn remove_person(&mut self, a: AgentId, t: Tick, why: Leaving) {
+    pub(crate) fn remove_person(&mut self, a: AgentId, t: Tick, why: Leaving) {
         let i = a as usize;
         let age = self.age(a, t);
         let given = self.agents.given[i];
@@ -1726,6 +1731,8 @@ impl Region {
             d.dating_since.remove(&a.min(partner));
         }
         self.away.remove(&a);
+        self.systems.justice.inmates.remove(&a);
+        self.systems.crime.records.remove(&a);
 
         // Family links.
         if partner != NONE {
@@ -1739,9 +1746,12 @@ impl Region {
             if self.agents.parent_b[k] == a {
                 self.agents.parent_b[k] = NONE;
             }
-            for f in self.systems.demography.friends[k].iter_mut() {
-                if *f == a {
-                    *f = NONE;
+            // (Slots added since the last morning, e.g. visitors, have no friends entry.)
+            if let Some(fr) = self.systems.demography.friends.get_mut(k) {
+                for f in fr.iter_mut() {
+                    if *f == a {
+                        *f = NONE;
+                    }
                 }
             }
         }

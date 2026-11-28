@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–4 are implemented; Phase 5 is next.
+> Status: **approved**. Phases 0–5 are implemented; Phase 6 is next.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -231,6 +231,31 @@ jail. Everything non-graphic.*
   release and recidivism.
 - Consequences for victims and families (needs, money, safety, moving away).
 - Safety perception per neighbourhood affecting decisions and rents.
+
+Decisions (approved):
+- Homicide is included but very rare (about one every few real months in the city), shown
+  only as news, investigation, trial and the victim's death. Nothing graphic.
+- Realistic frequency: a few shopliftings a day in the city, a burglary or a fight every
+  few days, fraud about once a month; the village is almost quiet.
+- The village has no police station or jail: city officers investigate there and its
+  convicts serve time in the city's jail (a `Prisoner` message between regions).
+
+Implemented as:
+- `data/crimes.ron` (rate per 100 million adult-days, loss, evidence needed, clearance,
+  hours) and `data/justice.ron` (police, courts, motive multipliers, safety).
+- Motive = honesty × age × (money trouble or arrears for property crimes; temper and a
+  recent layoff or break-up for fights) × criminal record.
+- Offences are planned at 06:00 and happen on the hour. Witnesses add evidence at once,
+  each police shift adds more (most serious case first), and only cases with leads (the
+  clearance rate) can be solved. Minor offences end in a fine; the rest in custody, a trial
+  ten days later and a sentence, or an acquittal. Convicts lose their job.
+- Victims lose money or are hurt (a few days of recovery), feel less safe, and some
+  burgled families move to a safer block. Unsafe blocks rent for less.
+- Snapshot format 6 (frozen v5 layout in `snapshot_v5.rs`; crime ids added to the content
+  ids).
+- Map: a marker over recent incidents, police tape around serious ones, police cars on
+  patrol (lights on). Panel: safety stats and a police log; cards show records and jail
+  time; newspaper stories for reports, arrests and verdicts.
 
 ## Phase 6 — New cities and the world map
 

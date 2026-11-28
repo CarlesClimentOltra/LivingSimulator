@@ -111,6 +111,13 @@ pub enum Body {
         firm: u32,
         agent: u32,
     },
+    /// Phase 5: someone from the source town serves time in this town's jail until
+    /// `release` (a release in the past removes them).
+    Prisoner {
+        agent: u32,
+        crime: u16,
+        release: crate::time::Tick,
+    },
 }
 
 /// Messages delivered to one region over a span of ticks, as published by the runner.

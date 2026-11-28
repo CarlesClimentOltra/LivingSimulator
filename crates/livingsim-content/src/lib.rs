@@ -107,6 +107,8 @@ pub enum ActivityKind {
     VisitFriend,
     /// Rest while ill, at home or in hospital (Phase 3).
     Recover,
+    /// Serving a jail sentence (Phase 5). Never chosen freely.
+    Jail,
 }
 
 /// Where an activity takes place.
@@ -384,10 +386,20 @@ pub enum JournalKind {
     WorkedOnSite = 43,
     Invested = 44,
     MovedIntoNewHome = 45,
+    Burgled = 46,
+    Assaulted = 47,
+    Defrauded = 48,
+    Arrested = 49,
+    Sentenced = 50,
+    Fined = 51,
+    Acquitted = 52,
+    Released = 53,
+    MovedAfterCrime = 54,
+    Witnessed = 55,
 }
 
 impl JournalKind {
-    pub const ALL: [JournalKind; 46] = [
+    pub const ALL: [JournalKind; 56] = [
         JournalKind::WokeUp,
         JournalKind::WentTo,
         JournalKind::Started,
@@ -434,6 +446,16 @@ impl JournalKind {
         JournalKind::WorkedOnSite,
         JournalKind::Invested,
         JournalKind::MovedIntoNewHome,
+        JournalKind::Burgled,
+        JournalKind::Assaulted,
+        JournalKind::Defrauded,
+        JournalKind::Arrested,
+        JournalKind::Sentenced,
+        JournalKind::Fined,
+        JournalKind::Acquitted,
+        JournalKind::Released,
+        JournalKind::MovedAfterCrime,
+        JournalKind::Witnessed,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -483,6 +505,16 @@ impl JournalKind {
             JournalKind::WorkedOnSite => "worked_on_site",
             JournalKind::Invested => "invested",
             JournalKind::MovedIntoNewHome => "moved_into_new_home",
+            JournalKind::Burgled => "burgled",
+            JournalKind::Assaulted => "assaulted",
+            JournalKind::Defrauded => "defrauded",
+            JournalKind::Arrested => "arrested",
+            JournalKind::Sentenced => "sentenced",
+            JournalKind::Fined => "fined",
+            JournalKind::Acquitted => "acquitted",
+            JournalKind::Released => "released",
+            JournalKind::MovedAfterCrime => "moved_after_crime",
+            JournalKind::Witnessed => "witnessed",
         }
     }
     pub fn from_u16(v: u16) -> Option<JournalKind> {
@@ -518,10 +550,15 @@ pub enum NewsKind {
     WorksStart = 21,
     Inauguration = 22,
     NewStreet = 23,
+    CrimeReport = 24,
+    Arrest = 25,
+    Verdict = 26,
+    Acquittal = 27,
+    Homicide = 28,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 24] = [
+    pub const ALL: [NewsKind; 29] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
@@ -546,6 +583,11 @@ impl NewsKind {
         NewsKind::WorksStart,
         NewsKind::Inauguration,
         NewsKind::NewStreet,
+        NewsKind::CrimeReport,
+        NewsKind::Arrest,
+        NewsKind::Verdict,
+        NewsKind::Acquittal,
+        NewsKind::Homicide,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -573,6 +615,11 @@ impl NewsKind {
             NewsKind::WorksStart => "works_start",
             NewsKind::Inauguration => "inauguration",
             NewsKind::NewStreet => "new_street",
+            NewsKind::CrimeReport => "crime_report",
+            NewsKind::Arrest => "arrest",
+            NewsKind::Verdict => "verdict",
+            NewsKind::Acquittal => "acquittal",
+            NewsKind::Homicide => "homicide",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -671,16 +718,74 @@ pub struct GoodDef {
     pub base_price_cents: i64,
 }
 
+/// What an offence does (Phase 5).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum CrimeKind {
+    /// Takes goods from a shop.
+    Shoplifting,
+    /// Takes money from a home, at night.
+    Burglary,
+    /// A fight between two people who know each other; the victim is hurt.
+    Assault,
+    /// Takes money from a person or a business by deceit.
+    Fraud,
+    /// Someone is killed (shown only as news, investigation and trial).
+    Homicide,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrimeDef {
     pub id: String,
     pub name: String,
+    pub kind: CrimeKind,
     /// Severity 1..=10 (non-graphic representation only).
     pub severity: u8,
+    /// Sentence range; a maximum of 0 means a fine instead of jail.
     pub min_sentence_days: u32,
     pub max_sentence_days: u32,
-    /// Permille base chance once motive threshold is reached.
-    pub base_permille: u16,
+    /// Offences per 100 million adult-days for someone with an average motive.
+    pub rate_per_100m_days: u32,
+    /// (min, max) money taken, in cents.
+    pub loss_cents: (i64, i64),
+    /// Evidence points the police need to arrest someone.
+    pub evidence: u32,
+    /// Chance (‰) that a case has leads at all; the rest can never be solved.
+    pub clearance_permille: u16,
+    /// Days after which an unsolved case is closed.
+    pub cold_after_days: u16,
+    /// (from, to) hours of the day when it happens (may cross midnight).
+    pub hours: (u8, u8),
+}
+
+/// Police, courts and jail (`data/justice.ron`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JusticeDef {
+    /// Evidence points an officer collects per shift (spread over open cases).
+    pub points_per_officer_shift: u32,
+    /// Daily evidence points for towns without a police station (officers from the city).
+    pub outside_police_points_per_day: u32,
+    /// Evidence points per witness at the scene (at most `max_witnesses`).
+    pub points_per_witness: u32,
+    pub max_witnesses: u16,
+    /// Days between an arrest and the trial.
+    pub trial_after_days: u16,
+    /// Chance of a guilty verdict (‰) with exactly enough evidence; more evidence raises it.
+    pub conviction_base_permille: u16,
+    /// Fine per point of severity for offences that carry no jail time.
+    pub fine_per_severity_cents: i64,
+    /// Motive multipliers (‰): broke, behind on rent, with a record, after a conflict.
+    pub broke_multiplier_permille: u32,
+    pub arrears_multiplier_permille: u32,
+    pub record_multiplier_permille: u32,
+    pub conflict_multiplier_permille: u32,
+    /// Neighbourhood safety: loss per point of severity, daily recovery (‰ of 1000).
+    pub safety_loss_per_severity: u16,
+    pub safety_recovery_per_day: u16,
+    /// Rent discount in the least safe blocks (‰).
+    pub rent_penalty_max_permille: u16,
+    /// Chance (‰) that a burgled household moves to another home.
+    pub move_after_burglary_permille: u16,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -711,6 +816,7 @@ pub struct Content {
     pub technologies: Vec<TechDef>,
     pub demography: DemographyDef,
     pub construction: ConstructionDef,
+    pub justice: JusticeDef,
 }
 
 /// Construction costs, pace and planning rules (`data/construction.ron`).

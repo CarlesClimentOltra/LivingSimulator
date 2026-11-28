@@ -285,6 +285,11 @@ impl Region {
                 } => self.receive_job_accept(m.src, *firm, *agent, *profession, *schedule),
                 Body::JobEnded { firm, agent } => self.receive_job_ended(m.src, *firm, *agent),
                 Body::WorkerLeft { firm, agent } => self.receive_worker_left(m.src, *firm, *agent),
+                Body::Prisoner {
+                    agent,
+                    crime,
+                    release,
+                } => self.receive_prisoner(m.src, *agent, *crime, *release),
                 Body::RemoteWage { agent, net } => self.receive_remote_wage(*agent, *net),
                 // Later phases.
                 Body::Migration { .. }
@@ -320,6 +325,9 @@ impl Region {
         let t = self.tick;
         if t.is_multiple_of(TICKS_PER_DAY) {
             self.morning(t);
+        }
+        if t.is_multiple_of(60) {
+            self.crime_hourly(t);
         }
         let mut due = std::mem::take(&mut self.due);
         self.queue.take_due(t, &mut due);
@@ -372,6 +380,7 @@ impl Region {
         self.economy_daily(t);
         self.commuting_daily(t);
         self.construction_daily(t);
+        self.crime_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),

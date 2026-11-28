@@ -126,3 +126,5 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a33; }
 .project a { color: #ffd54f; }
 .project-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .small { font-size: 11px; }
+.incident { margin: 6px 0; font-size: 13px; }
+.incident a { color: #ffd54f; }

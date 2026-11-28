@@ -42,6 +42,10 @@ export interface RegionDynamic {
   occupancy: Uint32Array;
   /** Building sites (see SITE_STRIDE). */
   sites: Uint32Array;
+  /** Incidents of the last day (see INCIDENT_STRIDE). */
+  incidents: Uint32Array;
+  /** Police patrol legs: from building, to building, depart tick, arrive tick. */
+  patrols: Uint32Array;
 }
 
 export type ToWorker =
@@ -82,6 +86,9 @@ export const F_CAR = 8;
 export const BUILDING_STRIDE = 9;
 /** Site layout: building, target def, phase (1 foundation, 2 structure, 3 roof), phase ‰, working. */
 export const SITE_STRIDE = 5;
+/** Incident layout: building, crime, tick, status (0 open … 6 unsolved). */
+export const INCIDENT_STRIDE = 4;
+export const PATROL_STRIDE = 4;
 export const NONE = 0xffffffff;
 
 export function routeKey(from: number, to: number, car: boolean): string {

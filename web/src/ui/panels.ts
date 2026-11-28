@@ -138,6 +138,18 @@ export interface ConstructionStats {
   map_tiles: number;
 }
 
+export interface SafetyStats {
+  by_crime_30d: [string, number][];
+  solved_30d: number;
+  convictions_30d: number;
+  inmates: number;
+  inmates_from_elsewhere: number;
+  officers: number;
+  safety: number;
+  recent: { building: number; what: string; place: string; when: string; status: string }[];
+  history: { tick: number; incidents: number; solved: number; inmates: number; safety: number }[];
+}
+
 export interface Stats {
   name: string;
   population: number;
@@ -162,6 +174,7 @@ export interface Stats {
   economy: EconomyStats;
   demography: DemographyStats;
   construction: ConstructionStats;
+  safety?: SafetyStats;
 }
 
 export interface NewsLine {
@@ -403,6 +416,7 @@ export function renderStats(el: HTMLElement, s: Stats) {
       stat('avg savings', money(s.avg_money_cents, 0)),
     ),
     ...constructionSection(s.construction),
+    ...safetySection(s.safety),
     ...economySection(s.economy),
     ...demographySection(s.demography),
   );
@@ -412,6 +426,37 @@ let onSite: ((building: number) => void) | null = null;
 /** Called when a construction project is clicked in the stats panel. */
 export function setSiteHandler(f: (building: number) => void) {
   onSite = f;
+}
+
+function safetySection(s: SafetyStats | undefined): HTMLElement[] {
+  if (!s) return [];
+  const total = s.by_crime_30d.reduce((a, [, n]) => a + n, 0);
+  const rows = s.recent.map((x) => {
+    const place = h('a', { href: '#' }, x.place);
+    place.addEventListener('click', (e) => {
+      e.preventDefault();
+      onSite?.(x.building);
+    });
+    return h('div', { class: 'incident' }, h('div', {}, h('strong', {}, x.what), ' at ', place), h('div', { class: 'muted small' }, `${x.when} · ${x.status}`));
+  });
+  return [
+    h('h3', {}, 'Safety (30 days)'),
+    h(
+      'div',
+      { class: 'stats-grid' },
+      stat('incidents', total),
+      stat('solved', s.solved_30d),
+      stat('convictions', s.convictions_30d),
+      stat('in jail', s.inmates + s.inmates_from_elsewhere),
+      stat('police officers', s.officers),
+      stat('feeling safe', `${Math.round(s.safety / 10)}%`),
+    ),
+    h('div', { class: 'acts' }, ...s.by_crime_30d.map(([n, v]) => h('div', { class: 'act' }, h('span', {}, n), h('span', { class: 'act-n' }, String(v))))),
+    h('h3', {}, 'Incidents per day'),
+    sparkline(s.history.map((x) => x.incidents), (v) => String(v), '#ff8a65'),
+    h('h3', {}, 'Police log'),
+    ...(rows.length ? rows : [h('p', { class: 'muted' }, 'A quiet town: nothing to report.')]),
+  ];
 }
 
 function constructionSection(c: ConstructionStats | undefined): HTMLElement[] {

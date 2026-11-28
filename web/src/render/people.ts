@@ -117,6 +117,68 @@ export class People {
     }
   }
 
+  private patrols = new Map<number, Uint32Array>();
+  private police!: THREE.InstancedMesh;
+  private policeTop!: THREE.InstancedMesh;
+  private policeLights!: THREE.InstancedMesh;
+
+  /** Police patrol legs of a region (from the worker, every tick). */
+  setPatrols(region: number, legs: Uint32Array) {
+    this.patrols.set(region, legs);
+  }
+
+  private makePolice() {
+    const n = 64;
+    this.police = new THREE.InstancedMesh(new THREE.BoxGeometry(0.44, 0.2, 0.84).translate(0, 0.14, 0), new THREE.MeshLambertMaterial({ color: 0xf5f5f5 }), n);
+    this.policeTop = new THREE.InstancedMesh(new THREE.BoxGeometry(0.38, 0.16, 0.44).translate(0, 0.31, -0.04), new THREE.MeshLambertMaterial({ color: 0x1a237e }), n);
+    this.policeLights = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.06, 0.1).translate(0, 0.42, -0.04), new THREE.MeshBasicMaterial({ color: 0xffffff }), n);
+    for (const im of [this.police, this.policeTop, this.policeLights]) {
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      im.frustumCulled = false;
+      im.count = 0;
+      this.group.add(im);
+    }
+    this.policeLights.setColorAt(0, new THREE.Color(0xffffff));
+  }
+
+  /** Police cars along their patrol legs; lights flash on the way to an incident. */
+  private updatePolice(t: number, realMs: number) {
+    if (!this.police) this.makePolice();
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const pos = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const one = new THREE.Vector3(1, 1, 1);
+    const col = new THREE.Color();
+    const cap = (this.police.instanceMatrix.array as Float32Array).length / 16;
+    let n = 0;
+    for (const reg of this.regions) {
+      const legs = this.patrols.get(reg.id);
+      if (!legs) continue;
+      for (let i = 0; i + 3 < legs.length && n < cap; i += 4) {
+        const [from, to, dep, arr] = [legs[i], legs[i + 1], legs[i + 2], legs[i + 3]];
+        if (from === to) continue;
+        const rt = this.routes.get(`${reg.id}/${routeKey(from, to, true)}`);
+        if (!rt) continue;
+        const f = Math.min(1, Math.max(0, (t - dep) / Math.max(1, arr - dep)));
+        const yaw = this.along(rt, f, 0.2, pos);
+        q.setFromAxisAngle(up, yaw);
+        m.compose(pos, q, one);
+        this.police.setMatrixAt(n, m);
+        this.policeTop.setMatrixAt(n, m);
+        this.policeLights.setMatrixAt(n, m);
+        const flash = Math.floor(realMs / 300 + i) % 2 === 0;
+        this.policeLights.setColorAt(n, col.setHex(flash ? 0xe53935 : 0x1e88e5));
+        n++;
+      }
+    }
+    for (const im of [this.police, this.policeTop, this.policeLights]) {
+      im.count = n;
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
+  }
+
   /** Forgets route shapes (the street network or the map changed). */
   clearRoutes() {
     this.routes.clear();
@@ -287,6 +349,7 @@ export class People {
     this.furniture.count = fi;
     this.furniture.instanceMatrix.needsUpdate = true;
     if (this.furniture.instanceColor) this.furniture.instanceColor.needsUpdate = true;
+    this.updatePolice(t, realMs);
     this.points.visible = far;
     this.points.geometry.setDrawRange(0, pi);
     (this.points.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;

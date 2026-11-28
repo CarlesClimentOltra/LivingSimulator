@@ -301,9 +301,16 @@ pub struct Good {
 pub struct Crime {
     pub id: String,
     pub name: String,
+    pub kind: crate::CrimeKind,
     pub severity: u8,
     pub sentence_days: (u32, u32),
-    pub base_permille: u16,
+    pub rate_per_100m_days: u32,
+    #[serde(default)]
+    pub loss_cents: (i64, i64),
+    pub evidence: u32,
+    pub clearance_permille: u16,
+    pub cold_after_days: u16,
+    pub hours: (u8, u8),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -336,4 +343,5 @@ pub struct RawContent {
     pub technologies: Vec<Technology>,
     pub demography: Option<crate::DemographyDef>,
     pub construction: Option<Construction>,
+    pub justice: Option<crate::JusticeDef>,
 }

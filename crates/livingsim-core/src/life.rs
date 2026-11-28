@@ -413,6 +413,9 @@ impl Region {
             self.decide_visitor(a, t);
             return;
         }
+        if self.decide_inmate(a, t) {
+            return;
+        }
         let sched = &c.content.schedules[self.agents.schedule[i] as usize];
         let place = self.agents.place[i];
         let home = self.agents.home[i];

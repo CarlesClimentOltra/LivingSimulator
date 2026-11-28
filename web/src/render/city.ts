@@ -2,7 +2,7 @@
 // windows that light up at night), roofs, trees and the highway between towns.
 
 import * as THREE from 'three';
-import { BUILDING_STRIDE, SITE_STRIDE, type RegionStatic } from '../sim/protocol';
+import { BUILDING_STRIDE, INCIDENT_STRIDE, SITE_STRIDE, type RegionStatic } from '../sim/protocol';
 
 export const FLOOR_H = 0.42;
 export const BASE_H = 0.15;
@@ -20,6 +20,7 @@ export interface BuildingDef {
 }
 
 export interface Content {
+  crimes?: { id: string; name: string; kind: string; severity: number }[];
   buildings: BuildingDef[];
   tags: string[];
   activities: { id: string; name: string; kind: string; doing: string }[];
@@ -229,6 +230,11 @@ export class City {
   private layer = new THREE.Group();
   // Building sites.
   private siteData: Uint32Array[] = [];
+  // Incidents: a floating marker for a few hours, police tape around serious ones.
+  private incidentData: { arr: Uint32Array; tick: number }[] = [];
+  private incidentKey = '';
+  private markers!: THREE.InstancedMesh;
+  private tape!: THREE.InstancedMesh;
   private siteKey = '';
   siteBodies: THREE.InstancedMesh;
   /** site instance -> (region index << 20 | building) */
@@ -241,6 +247,14 @@ export class City {
   constructor(private content: Content, night: { value: number }) {
     this.bodyMat = windowMaterial(night);
     this.group.add(this.layer);
+    this.markers = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.45, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }), 256);
+    this.tape = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffd600 }), 1024);
+    this.markers.setColorAt(0, new THREE.Color(0xffffff));
+    for (const im of [this.markers, this.tape]) {
+      im.count = 0;
+      im.frustumCulled = false;
+      this.group.add(im);
+    }
     const N = 512;
     const box = () => new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     const lambert = () => new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -285,7 +299,76 @@ export class City {
     this.interiors = !interiors;
     this.setInteriors(interiors);
     this.siteKey = '';
+    this.incidentKey = '';
+    this.drawIncidents();
     this.drawSites();
+  }
+
+  /**
+   * Recent incidents (from every tick): a marker floats over the place for six hours, and
+   * serious offences are taped off while the case is open (up to a day).
+   */
+  setIncidents(region: number, arr: Uint32Array, tick: number) {
+    if (region < 0) return;
+    this.incidentData[region] = { arr, tick };
+    // Redraw when the list changes or every simulated hour (markers expire).
+    const key = this.incidentData.map((d) => (d ? `${d.arr.join(',')}@${Math.floor(d.tick / 60)}` : '')).join('|');
+    if (key === this.incidentKey) return;
+    this.incidentKey = key;
+    this.drawIncidents();
+  }
+
+  private drawIncidents() {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const v = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    const col = new THREE.Color();
+    const crimes = this.content.crimes ?? [];
+    const colours: Record<string, number> = { Shoplifting: 0xffd54f, Burglary: 0xff9800, Assault: 0xf4511e, Fraud: 0xab47bc, Homicide: 0xb71c1c };
+    let mi = 0, ti = 0;
+    const mCap = 256, tCap = 1024;
+    this.incidentData.forEach((d, ri) => {
+      const s = this.statics[ri];
+      if (!d || !s) return;
+      const [ox, oz] = s.info.origin;
+      for (let o = 0; o + INCIDENT_STRIDE <= d.arr.length; o += INCIDENT_STRIDE) {
+        const [b, crime, tick, status] = [d.arr[o], d.arr[o + 1], d.arr[o + 2], d.arr[o + 3]];
+        const age = d.tick - tick;
+        const bo = b * BUILDING_STRIDE;
+        if (bo + 8 >= s.buildings.length) continue;
+        const cd = crimes[crime];
+        const def = this.content.buildings[s.buildings[bo]];
+        const [x, y, bw, bd] = [s.buildings[bo + 1], s.buildings[bo + 2], s.buildings[bo + 3], s.buildings[bo + 4]];
+        const top = def && def.roof !== 'None' ? BASE_H + def.floors * FLOOR_H + 1.2 : 1.4;
+        if (age < 360 && mi < mCap) {
+          m.compose(v.set(ox + x + bw / 2, top, oz + y + bd / 2), q, sc.set(1, 1.5, 1));
+          this.markers.setMatrixAt(mi, m);
+          this.markers.setColorAt(mi++, col.setHex(colours[cd?.kind ?? ''] ?? 0xffffff));
+        }
+        // Tape around the lot of serious offences while the police are on the case.
+        if ((cd?.severity ?? 0) >= 4 && age < 1440 && status <= 2 && ti + 4 <= tCap) {
+          const [lx, ly, lw, lh] = [s.buildings[bo + 5], s.buildings[bo + 6], s.buildings[bo + 7], s.buildings[bo + 8]];
+          const x0 = ox + lx - 0.2, z0 = oz + ly - 0.2, x1 = ox + lx + lw + 0.2, z1 = oz + ly + lh + 0.2;
+          const h = 0.32;
+          for (const [cx, cz, sx, sz] of [
+            [(x0 + x1) / 2, z0, x1 - x0, 0.04],
+            [(x0 + x1) / 2, z1, x1 - x0, 0.04],
+            [x0, (z0 + z1) / 2, 0.04, z1 - z0],
+            [x1, (z0 + z1) / 2, 0.04, z1 - z0],
+          ]) {
+            m.compose(v.set(cx, h, cz), q, sc.set(sx, 0.06, sz));
+            this.tape.setMatrixAt(ti++, m);
+          }
+        }
+      }
+    });
+    this.markers.count = mi;
+    this.tape.count = ti;
+    for (const im of [this.markers, this.tape]) {
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
   }
 
   /** Building sites of a region (from every tick); redrawn only when they change. */
