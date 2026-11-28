@@ -1,0 +1,30 @@
+// Police, courts and jail (Phase 5).
+(
+    // Investigation: each officer shift adds evidence to open cases (most serious first);
+    // witnesses at the scene add evidence at once. Towns without a police station are
+    // covered by officers from the city.
+    points_per_officer_shift: 1,
+    outside_police_points_per_day: 8,
+    points_per_witness: 4,
+    max_witnesses: 5,
+
+    // Courts: the trial comes some days after the arrest. With exactly enough evidence the
+    // chance of a guilty verdict is conviction_base_permille; more evidence raises it.
+    trial_after_days: 10,
+    conviction_base_permille: 700,
+    // Offences without jail time (sentence max 0) are punished with a fine.
+    fine_per_severity_cents: 25000,
+
+    // Motive multipliers (1000 = unchanged).
+    broke_multiplier_permille: 4000,
+    arrears_multiplier_permille: 2000,
+    record_multiplier_permille: 3000,
+    conflict_multiplier_permille: 3000,
+
+    // Neighbourhoods: each offence lowers the block's safety (0..1000) by severity * loss;
+    // it recovers a little every day. Unsafe blocks have cheaper rents for newcomers.
+    safety_loss_per_severity: 40,
+    safety_recovery_per_day: 8,
+    rent_penalty_max_permille: 150,
+    move_after_burglary_permille: 150,
+)

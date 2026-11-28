@@ -81,4 +81,9 @@
     (id: "visit_city", name: "Visit the city", kind: VisitRegion, place: OtherRegion,
      effects: {"fun": 1800, "social": 1200},
      minutes: (180, 300), bias: -400, ages: (16, 85), doing: "visiting another town"),
+
+    // Phase 5: only the justice system sends people here.
+    (id: "serve_sentence", name: "Serve a sentence", kind: Jail, place: Tag("jail"),
+     effects: {"fun": -150, "social": 300, "energy": 400},
+     minutes: (1440, 1440), ages: (16, 255), doing: "serving a sentence"),
 ]
