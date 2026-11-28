@@ -23,6 +23,21 @@ fn main() {
                 println!("{:<10} day+{:>3} pop {:>5} | unemp {:>3}‰ meal ${:.2} rent ${} treasury ${}k tax {}‰ open {} closed {} | births30 {} deaths30 {} couples {} ill {} preg {} | commute out {} in {} | savings ${} | Δmoney {}",
                     r.name(), d, s.population, e.unemployment_permille, e.food_price_cents as f64 / 100.0, e.avg_rent_cents / 100, e.treasury_cents / 100_000, e.income_tax_permille,
                     e.firms_open, e.firms_closed, p.births_30d, p.deaths_30d, p.couples, p.ill, p.pregnant, p.commuters_out, p.commuters_in, s.avg_money_cents / 100, r.money_total() - start[ri]);
+                let k = &s.construction;
+                println!(
+                    "{:<10}          map {}x{} | building {} finished {} streets {} | {}",
+                    r.name(),
+                    r.map.width,
+                    r.map.height,
+                    k.open.len(),
+                    k.finished,
+                    k.streets,
+                    k.open
+                        .iter()
+                        .map(|p| format!("{} {}‰ ({})", p.what, p.progress_permille, p.phase))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
             }
         }
         if d < days {

@@ -28,10 +28,11 @@ fn life_goes_on_and_money_is_conserved() {
                     r.agents.flags[i] & flags::FEMALE != 0,
                     "only women get pregnant"
                 );
+                // The father may have died or left since; if there is a partner, he is a man.
                 let p = r.agents.partner[i];
                 assert!(
-                    p != NONE && r.agents.flags[p as usize] & flags::FEMALE == 0,
-                    "pregnant with a male partner"
+                    p == NONE || r.agents.flags[p as usize] & flags::FEMALE == 0,
+                    "pregnant with a male partner (mother {mother}, partner {p})"
                 );
             }
         }

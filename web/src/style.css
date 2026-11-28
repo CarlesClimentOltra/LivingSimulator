@@ -118,3 +118,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a33; }
 .pyr-bar.m { justify-content: flex-end; }
 .pyr-bar.m > div { background: #64b5f6; border-radius: 3px 0 0 3px; }
 .pyr-bar.f > div { background: #f48fb1; border-radius: 0 3px 3px 0; }
+
+/* Construction (Phase 4) */
+.progress { height: 6px; background: rgba(255, 255, 255, 0.12); border-radius: 3px; overflow: hidden; margin: 4px 0 6px; }
+.progress > div { height: 100%; background: linear-gradient(90deg, #ffb300, #ffd54f); }
+.project { margin: 8px 0; }
+.project a { color: #ffd54f; }
+.project-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.small { font-size: 11px; }

@@ -2,7 +2,7 @@
 // windows that light up at night), roofs, trees and the highway between towns.
 
 import * as THREE from 'three';
-import { BUILDING_STRIDE, type RegionStatic } from '../sim/protocol';
+import { BUILDING_STRIDE, SITE_STRIDE, type RegionStatic } from '../sim/protocol';
 
 export const FLOOR_H = 0.42;
 export const BASE_H = 0.15;
@@ -54,6 +54,8 @@ const TILE_COLORS: Record<number, [number, number, number]> = {
   7: [112, 190, 80], // park
   8: [214, 190, 118], // field
   9: [216, 207, 192], // plaza
+  10: [158, 126, 88], // road works (dirt)
+  11: [178, 152, 114], // building site
 };
 const PX = 4;
 
@@ -89,6 +91,16 @@ function groundTexture(tiles: Uint8Array, w: number, h: number): THREE.DataTextu
             if ((k === 2 || k === 3) && vert && !horiz && (px === 1 || px === 2) && py < 2 && ty % 2 === 0) [r, g, b] = [236, 220, 140];
           } else if (k === 8) {
             if (py % 2 === 0) [r, g, b] = [196, 168, 98];
+          } else if (k === 10 || k === 11) {
+            // Dirt with tyre tracks; sites are fenced (orange site fence on their border).
+            if ((px + py + tx) % 3 === 0) [r, g, b] = [r - 14, g - 12, b - 10];
+            const fence =
+              k === 11 &&
+              ((px === 0 && at(tx - 1, ty) !== 11) ||
+                (px === PX - 1 && at(tx + 1, ty) !== 11) ||
+                (py === 0 && at(tx, ty - 1) !== 11) ||
+                (py === PX - 1 && at(tx, ty + 1) !== 11));
+            if (fence) [r, g, b] = (px + py) % 2 === 0 ? [236, 120, 40] : [245, 245, 240];
           }
           const i = ((ty * PX + py) * W + tx * PX + px) * 4;
           data[i] = Math.max(0, Math.min(255, r + v));
@@ -213,15 +225,160 @@ export class City {
   private interiors = false;
   private statics: RegionStatic[] = [];
   private expected: Float32Array = new Float32Array(0);
+  /** Everything rebuilt when the map changes. */
+  private layer = new THREE.Group();
+  // Building sites.
+  private siteData: Uint32Array[] = [];
+  private siteKey = '';
+  siteBodies: THREE.InstancedMesh;
+  /** site instance -> (region index << 20 | building) */
+  siteOwner: Int32Array;
+  private siteRoofsG: THREE.InstancedMesh;
+  private siteRoofsF: THREE.InstancedMesh;
+  private scaffolds: THREE.InstancedMesh;
+  private cranes: THREE.InstancedMesh;
 
   constructor(private content: Content, night: { value: number }) {
     this.bodyMat = windowMaterial(night);
+    this.group.add(this.layer);
+    const N = 512;
+    const box = () => new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
+    const lambert = () => new THREE.MeshLambertMaterial({ color: 0xffffff });
+    this.siteBodies = new THREE.InstancedMesh(box(), lambert(), N);
+    this.siteOwner = new Int32Array(N);
+    this.siteRoofsG = new THREE.InstancedMesh(prism(), lambert(), N);
+    this.siteRoofsF = new THREE.InstancedMesh(box(), lambert(), N);
+    // Scaffolding: a wire lattice around the structure.
+    this.scaffolds = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1, 4, 4, 4).translate(0, 0.5, 0),
+      new THREE.MeshBasicMaterial({ color: 0x8d6e63, wireframe: true }),
+      N,
+    );
+    // Tower cranes: mast + jib + counterweight, as unit boxes placed per crane.
+    this.cranes = new THREE.InstancedMesh(box(), new THREE.MeshLambertMaterial({ color: 0xffc107 }), N * 3);
+    for (const im of [this.siteBodies, this.siteRoofsG, this.siteRoofsF]) im.setColorAt(0, new THREE.Color(0xffffff));
+    for (const im of [this.siteBodies, this.siteRoofsG, this.siteRoofsF, this.scaffolds, this.cranes]) {
+      im.count = 0;
+      im.frustumCulled = false;
+      this.group.add(im);
+    }
+  }
+
+  /** Throws the static meshes away and builds them again from new data. */
+  rebuild(statics: RegionStatic[]) {
+    this.layer.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.geometry) mesh.geometry.dispose();
+      const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+      if (mat && mat !== this.bodyMat) {
+        for (const m of Array.isArray(mat) ? mat : [mat]) {
+          (m as THREE.MeshLambertMaterial).map?.dispose();
+          m.dispose();
+        }
+      }
+    });
+    this.layer.clear();
+    this.regions.length = 0;
+    this.slabCentre.set(1e9, 0, 1e9);
+    this.build(statics);
+    const interiors = this.interiors;
+    this.interiors = !interiors;
+    this.setInteriors(interiors);
+    this.siteKey = '';
+    this.drawSites();
+  }
+
+  /** Building sites of a region (from every tick); redrawn only when they change. */
+  setSites(region: number, sites: Uint32Array) {
+    if (region < 0) return;
+    this.siteData[region] = sites;
+    const key = this.siteData.map((s) => (s ? s.join(',') : '')).join('|');
+    if (key === this.siteKey) return;
+    this.siteKey = key;
+    this.drawSites();
+  }
+
+  private drawSites() {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const col = new THREE.Color();
+    const v = new THREE.Vector3();
+    const sc = new THREE.Vector3();
+    let bi = 0, gi = 0, fi = 0, si = 0, ci = 0;
+    const cap = this.siteOwner.length;
+    this.siteData.forEach((arr, ri) => {
+      const s = this.statics[ri];
+      if (!arr || !s) return;
+      const [ox, oz] = s.info.origin;
+      for (let o = 0; o + SITE_STRIDE <= arr.length && bi < cap; o += SITE_STRIDE) {
+        const [b, target, phase, local] = [arr[o], arr[o + 1], arr[o + 2], arr[o + 3] / 1000];
+        const bo = b * BUILDING_STRIDE;
+        if (bo + 4 >= s.buildings.length) continue;
+        const d = this.content.buildings[target];
+        if (!d || d.roof === 'None') continue; // parks: only the dirt and the fence
+        const [x, y, bw, bd] = [s.buildings[bo + 1], s.buildings[bo + 2], s.buildings[bo + 3], s.buildings[bo + 4]];
+        const cx = ox + x + bw / 2;
+        const cz = oz + y + bd / 2;
+        const full = BASE_H + d.floors * FLOOR_H;
+        let h: number;
+        if (phase === 1) {
+          h = 0.04 + BASE_H * local;
+          col.setHex(0x9e9e9e);
+        } else if (phase === 2) {
+          h = BASE_H + d.floors * FLOOR_H * Math.max(0.12, local);
+          col.setHex(0xbdb5a6);
+        } else {
+          h = full;
+          col.setHex(0xbdb5a6).lerp(new THREE.Color(d.color), Math.min(1, local * 1.4));
+        }
+        m.compose(v.set(cx, 0, cz), q, sc.set(bw * 0.94, h, bd * 0.94));
+        this.siteBodies.setMatrixAt(bi, m);
+        this.siteBodies.setColorAt(bi, col);
+        this.siteOwner[bi++] = (ri << 20) | b;
+        if (phase >= 2 && !(phase === 3 && local > 0.85)) {
+          m.compose(v.set(cx, 0, cz), q, sc.set(bw * 1.08, h + 0.25, bd * 1.08));
+          this.scaffolds.setMatrixAt(si++, m);
+        }
+        if (phase === 3 && local > 0.5) {
+          col.setHex(d.roof_color);
+          if (d.roof === 'Gabled') {
+            m.compose(v.set(cx, full, cz), q, sc.set(bw * 1.02, Math.min(bw, bd) * 0.45, bd * 1.02));
+            this.siteRoofsG.setMatrixAt(gi, m);
+            this.siteRoofsG.setColorAt(gi++, col);
+          } else {
+            m.compose(v.set(cx, full, cz), q, sc.set(bw * 0.97, 0.08, bd * 0.97));
+            this.siteRoofsF.setMatrixAt(fi, m);
+            this.siteRoofsF.setColorAt(fi++, col);
+          }
+        }
+        // A tower crane next to tall buildings while the structure goes up.
+        if (d.floors >= 3 && phase >= 2 && ci + 3 <= cap * 3) {
+          const mx = cx + bw / 2 + 0.7;
+          const mz = cz - bd / 2 + 0.5;
+          const top = full + 1.6;
+          const jib = Math.max(bw, bd) + 1.5;
+          m.compose(v.set(mx, 0, mz), q, sc.set(0.22, top, 0.22));
+          this.cranes.setMatrixAt(ci++, m);
+          m.compose(v.set(mx - jib / 2 + 0.6, top, mz), q, sc.set(jib, 0.16, 0.18));
+          this.cranes.setMatrixAt(ci++, m);
+          m.compose(v.set(mx + 1.0, top - 0.25, mz), q, sc.set(0.5, 0.3, 0.32));
+          this.cranes.setMatrixAt(ci++, m);
+        }
+      }
+    });
+    const counts: [THREE.InstancedMesh, number][] = [[this.siteBodies, bi], [this.siteRoofsG, gi], [this.siteRoofsF, fi], [this.scaffolds, si], [this.cranes, ci]];
+    for (const [im, n] of counts) {
+      im.count = n;
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    }
   }
 
   build(statics: RegionStatic[]) {
     const c = this.content;
     const tagId = (t: string) => c.tags.indexOf(t);
     const outdoorTags = [tagId('park'), tagId('farm')].filter((x) => x >= 0);
+    const siteTag = tagId('site');
     let totalBodies = 0;
     let gabled = 0;
     let flat = 0;
@@ -254,7 +411,7 @@ export class City {
       // Ground.
       const ground = new THREE.Mesh(groundQuad(w, h), new THREE.MeshLambertMaterial({ map: groundTexture(s.tiles, w, h) }));
       ground.position.set(ox, 0, oz);
-      this.group.add(ground);
+      this.layer.add(ground);
       const n = s.buildings.length / BUILDING_STRIDE;
       const region: CityRegion = { id: s.info.id, origin, width: w, height: h, buildings: s.buildings, bodyIndex: new Int32Array(n).fill(-1), outdoor: new Uint8Array(n) };
       for (let b = 0; b < n; b++) {
@@ -262,6 +419,7 @@ export class City {
         const d = c.buildings[s.buildings[o]];
         const [x, y, bw, bd] = [s.buildings[o + 1], s.buildings[o + 2], s.buildings[o + 3], s.buildings[o + 4]];
         if (d.tags.some((t) => outdoorTags.includes(t))) region.outdoor[b] = 1;
+        if (siteTag >= 0 && d.tags.includes(siteTag)) region.outdoor[b] = 2;
         if (d.roof === 'None') continue;
         const height = BASE_H + d.floors * FLOOR_H;
         const cx = ox + x + bw / 2;
@@ -303,7 +461,7 @@ export class City {
       im.instanceMatrix.needsUpdate = true;
       if (im.instanceColor) im.instanceColor.needsUpdate = true;
       im.computeBoundingSphere();
-      this.group.add(im);
+      this.layer.add(im);
     }
     this.roofs = [roofsG, roofsF];
     this.statics = statics;
@@ -314,7 +472,7 @@ export class City {
     );
     this.slabs.count = 0;
     this.slabs.frustumCulled = false;
-    this.group.add(this.slabs);
+    this.layer.add(this.slabs);
     this.addTrees(trees);
     this.addHighways(statics);
     this.addLand(statics);
@@ -337,7 +495,7 @@ export class City {
     for (const im of [crowns, trunks]) {
       im.instanceMatrix.needsUpdate = true;
       im.computeBoundingSphere();
-      this.group.add(im);
+      this.layer.add(im);
     }
     if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
   }
@@ -363,7 +521,7 @@ export class City {
       const strip = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 1.4), mat);
       strip.position.set((a.x + b.x) / 2, 0.01, (a.z + b.z) / 2);
       strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-      this.group.add(strip);
+      this.layer.add(strip);
     }
   }
 
@@ -422,7 +580,7 @@ export class City {
     const g = new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
     const land = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ map: tex }));
     land.position.set(x0 + w / 2, -0.04, z0 + d / 2);
-    this.group.add(land);
+    this.layer.add(land);
     // Woods: clusters of trees in a band around the towns.
     const trees: [number, number, number][] = [];
     for (let i = 0; i < 260; i++) {

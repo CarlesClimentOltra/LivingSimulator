@@ -125,6 +125,15 @@ impl Sim {
         Ok(render::roads_packed(&self.get(region)?.region))
     }
 
+    /// Changes whenever the map or the buildings change (new sites, streets, openings).
+    pub fn static_version(&self, region: u16) -> Result<u32, JsError> {
+        Ok(self.get(region)?.region.systems.construction.static_version)
+    }
+
+    pub fn sites(&self, region: u16) -> Result<Vec<u32>, JsError> {
+        Ok(render::sites_packed(&self.get(region)?.region))
+    }
+
     pub fn agents(&self, region: u16) -> Result<Vec<u32>, JsError> {
         Ok(render::agents_packed(&self.get(region)?.region))
     }

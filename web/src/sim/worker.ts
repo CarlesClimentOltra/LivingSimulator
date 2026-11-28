@@ -112,12 +112,7 @@ async function boot() {
   }
   console.info(`caught up ${target - start} ticks in ${(performance.now() - t0).toFixed(0)} ms`);
 
-  const regions: RegionStatic[] = regionIds.map((id) => ({
-    info: JSON.parse(sim.region_info(id)),
-    tiles: sim.tiles(id),
-    buildings: sim.buildings(id),
-    roads: sim.roads(id),
-  }));
+  const regions = statics();
   post(
     { type: 'ready', manifest, content: content_json(), regions },
     regions.flatMap((r) => [r.tiles.buffer, r.buildings.buffer, r.roads.buffer]),
@@ -129,6 +124,27 @@ async function boot() {
 
 let lastSent = -1;
 let stalled = false;
+const staticVersions = new Map<number, number>();
+
+function statics(): RegionStatic[] {
+  return regionIds.map((id) => {
+    staticVersions.set(id, sim.static_version(id));
+    return {
+      info: JSON.parse(sim.region_info(id)),
+      tiles: sim.tiles(id),
+      buildings: sim.buildings(id),
+      roads: sim.roads(id),
+    };
+  });
+}
+
+/** Resends the map when construction changed it (routes are recomputed too). */
+function checkStatic() {
+  if (!regionIds.some((id) => sim.static_version(id) !== staticVersions.get(id))) return;
+  const regions = statics();
+  sentRoutes.clear();
+  post({ type: 'static', regions }, regions.flatMap((r) => [r.tiles.buffer, r.buildings.buffer, r.roads.buffer]));
+}
 
 async function loop() {
   if (busy) return;
@@ -155,6 +171,7 @@ async function loop() {
       post({ type: 'status', stalled, message: stalled ? 'The world runner is late: time is paused until it publishes more of the future.' : '' });
     }
     const t = sim.tick(regionIds[0]);
+    if (!catchingUp) checkStatic();
     if (advanced && t !== lastSent) sendTick(catchingUp);
   } catch (e) {
     post({ type: 'error', message: String(e) });
@@ -169,7 +186,7 @@ function sendTick(catchingUp: boolean) {
   for (const id of regionIds) {
     const agents = sim.agents(id);
     const occupancy = sim.occupancy(id);
-    regions.push({ id, tick: sim.tick(id), agents, occupancy });
+    regions.push({ id, tick: sim.tick(id), agents, occupancy, sites: sim.sites(id) });
     if (catchingUp) continue;
     for (let i = 0; i < agents.length; i += AGENT_STRIDE) {
       if (agents[i + A_ACT] !== R_TRAVEL) continue;
@@ -183,7 +200,7 @@ function sendTick(catchingUp: boolean) {
   lastSent = sim.tick(regionIds[0]);
   post(
     { type: 'tick', regions, routes, catchingUp },
-    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer]), ...routes.map((r) => r.pts.buffer)],
+    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer, r.sites.buffer]), ...routes.map((r) => r.pts.buffer)],
   );
 }
 

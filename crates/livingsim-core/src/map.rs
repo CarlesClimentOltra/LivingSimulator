@@ -22,6 +22,10 @@ pub enum TileKind {
     Park = 7,
     Field = 8,
     Plaza = 9,
+    /// A street being built (dirt).
+    RoadWorks = 10,
+    /// A fenced construction site.
+    Site = 11,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -77,6 +81,8 @@ pub fn tile_kind(v: u8) -> TileKind {
         7 => TileKind::Park,
         8 => TileKind::Field,
         9 => TileKind::Plaza,
+        10 => TileKind::RoadWorks,
+        11 => TileKind::Site,
         _ => TileKind::Grass,
     }
 }

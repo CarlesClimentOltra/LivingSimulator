@@ -45,6 +45,9 @@
         "new_friend": "Became friends with {person}.",
         "moved_town": "Moved with the family to {city}.",
         "started_university": "Started university.",
+        "worked_on_site": "Worked on the construction of {place}.",
+        "invested": "Invested {amount} in a new {activity} project.",
+        "moved_into_new_home": "Moved into a brand-new home at {place}.",
     },
     news: {
         "daily_summary": ("Another day in {city}", "{n} trips were made around town yesterday."),
@@ -68,5 +71,8 @@
         "census": ("Monthly census", "{city} is now home to {n} people."),
         "migration": ("Comings and goings", "{n} people moved to {city} last week, and {place} left."),
         "commuters": ("Commuters", "{n} people from {place} now work in {city}."),
+        "works_start": ("Works begin", "Construction of a new {place} has started in {city}."),
+        "inauguration": ("Inauguration", "{place} opened its doors after {n} days of works."),
+        "new_street": ("New street", "A new street now connects {city} with fresh land for building."),
     },
 )

@@ -577,6 +577,9 @@ impl Region {
         }
         self.systems.economy.today.income_tax += tax;
         self.today.wages_paid_cents += wage;
+        if kind == FirmKind::Construction {
+            self.construction_shift_done(a, f, t);
+        }
         self.journal(
             a,
             t,

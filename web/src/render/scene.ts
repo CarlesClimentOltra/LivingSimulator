@@ -22,7 +22,9 @@ export class Stage {
 
   constructor(container: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: window.devicePixelRatio < 2, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Phones: fewer pixels keep the frame rate (and the battery) reasonable.
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
     this.renderer.shadowMap.enabled = false;
     container.appendChild(this.renderer.domElement);
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 9000);

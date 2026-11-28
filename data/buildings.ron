@@ -176,4 +176,8 @@
     (id: "highway_exit", name: "Highway exit", lot: Small, size: (2, 2), floors: 1,
      tags: ["gateway"], name_patterns: ["{place} Interchange"],
      color: "#78909c", roof_color: "#455a64"),
+    // A building being built: the renderer shows the fenced site, the structure growing
+    // phase by phase, scaffolding and cranes. Never placed by zoning.
+    (id: "construction_site", name: "Construction site", lot: Small, size: (1, 1), floors: 1,
+     tags: ["site"], color: "#a1887f", roof_color: "#8d6e63", roof: None),
 ]

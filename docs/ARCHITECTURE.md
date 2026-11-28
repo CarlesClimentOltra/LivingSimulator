@@ -420,7 +420,7 @@ the others exist as **types and stubs** (compiling, no-op or minimal) from Phase
 | `movement`      | 1 | routing, analytic trips |
 | `economy`       | 2 | firms, wages, prices, rents, shop stock, farms, taxes, public budget |
 | `demography`    | 3 | couples, births, ageing, deaths, retirement, education |
-| `construction`  | 4 | demand → projects → construction firms → visible phases |
+| `construction`  | 4 | weekly demand → lots or new streets → funder pays each phase → builder crews on site → opening (firm, landlord, news) |
 | `crime`         | 5 | motive model (traits × desperation × conflict), offences |
 | `justice`       | 5 | patrols, investigations, arrests, trials, sentences, jail |
 | `expansion`     | 6 | new regions/cities founded, highways |
@@ -452,6 +452,11 @@ newspaper headlines. No blood, no gore.
   frozen copies of old layouts (`v1`, `v2`, …) and a chain of `migrate_vN_to_vN+1`.
   Migrations are deterministic and tested with fixture snapshots committed to the repo
   (small, synthetic regions only).
+* Format 5 (Phase 4) froze format 4 in `snapshot_v4.rs`: the construction stub is replaced
+  by the real state. A migrated region adds its growth ring of empty land on its first
+  morning (`bootstrap_construction`), shifting every coordinate and its world origin so
+  nothing moves on screen. Formats 1–3 are not migrated (their content indices are
+  ambiguous); the runner regenerates the world instead.
 * `sim_version` changes on every engine/content change. A deploy with a new version
   **rebases** the world: the runner takes the latest checkpoint `≤ now`, migrates it, and
   recomputes the future (`now + LEAD`) with the new code. The world history "forks" at the

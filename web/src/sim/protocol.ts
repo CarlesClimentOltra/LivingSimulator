@@ -40,6 +40,8 @@ export interface RegionDynamic {
   tick: number;
   agents: Uint32Array;
   occupancy: Uint32Array;
+  /** Building sites (see SITE_STRIDE). */
+  sites: Uint32Array;
 }
 
 export type ToWorker =
@@ -53,6 +55,8 @@ export type FromWorker =
   | { type: 'progress'; label: string; done: number; total: number }
   | { type: 'ready'; manifest: Manifest; content: string; regions: RegionStatic[] }
   | { type: 'tick'; regions: RegionDynamic[]; routes: { key: string; pts: Int32Array }[]; catchingUp: boolean }
+  /** The map or the buildings changed (new sites, streets, openings, growth). */
+  | { type: 'static'; regions: RegionStatic[] }
   | { type: 'reply'; req: number; json: string }
   | { type: 'status'; stalled: boolean; message: string }
   | { type: 'reload'; reason: string }
@@ -76,6 +80,8 @@ export const F_VISITOR = 2;
 export const F_FEMALE = 4;
 export const F_CAR = 8;
 export const BUILDING_STRIDE = 9;
+/** Site layout: building, target def, phase (1 foundation, 2 structure, 3 roof), phase ‰, working. */
+export const SITE_STRIDE = 5;
 export const NONE = 0xffffffff;
 
 export function routeKey(from: number, to: number, car: boolean): string {

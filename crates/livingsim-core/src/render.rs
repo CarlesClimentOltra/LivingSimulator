@@ -39,6 +39,47 @@ pub fn buildings_packed(r: &Region) -> Vec<u32> {
     out
 }
 
+/// u32 values per building site in [`sites_packed`].
+pub const SITE_STRIDE: usize = 5;
+
+/// Building sites: building, target def, phase (1 foundation, 2 structure, 3 roof),
+/// progress of that phase (‰), and 1 while the phase is under way (0 waiting for money).
+pub fn sites_packed(r: &Region) -> Vec<u32> {
+    use crate::systems::construction::{Phase, Work};
+    let mut out = Vec::new();
+    for p in &r.systems.construction.projects {
+        let Work::Building { site, def } = p.work else {
+            continue;
+        };
+        if p.phase == Phase::Finished {
+            continue;
+        }
+        let ph = if p.phase == Phase::Planned {
+            p.next
+        } else {
+            p.phase
+        };
+        let (code, idx) = match ph {
+            Phase::Foundation => (1, 0),
+            Phase::Structure => (2, 1),
+            _ => (3, 2),
+        };
+        let local = if p.phase == Phase::Planned {
+            0
+        } else {
+            (p.done * 1000 / p.units[idx].max(1)).min(1000)
+        };
+        out.extend_from_slice(&[
+            site,
+            def as u32,
+            code,
+            local,
+            (p.phase != Phase::Planned) as u32,
+        ]);
+    }
+    out
+}
+
 /// Per agent slot: act, place, trip_from, trip_to, depart, arrive, info where
 /// info = flags | age << 8 | (shirt colour seed & 0xff) << 16, household.
 pub fn agents_packed(r: &Region) -> Vec<u32> {
