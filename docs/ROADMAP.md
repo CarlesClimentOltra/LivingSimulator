@@ -1,6 +1,6 @@
 # Living Simulator — Roadmap
 
-> Status: **approved**. Phases 0–5 are implemented; Phase 6 is next.
+> Status: **approved**. Phases 0–6 are implemented; Phase 7 is next.
 > Every phase ends with something **visible at the public URL**. Phases are ordered so
 > that each one builds on systems that already run live, and scalability work is spread
 > across all of them instead of being left for the end.
@@ -269,6 +269,31 @@ render as simplified meshes. People commute and move between towns.*
   regions, world-map view with per-region stats.
 - Manifest per region with summaries; incremental/delta snapshots.
 - Runner: measure and, if needed, prepare sharding across a job matrix.
+
+Implemented as:
+- **Pressure.** Every morning each town adds points for long-term job seekers, people who
+  left for lack of work or a home, and households waiting for a home beyond the free ones;
+  four times as many once it has no room left to grow (`world.ron` → `expansion`).
+- **Founding.** At 06:00 the world founds a town next to the town under most pressure
+  (over the threshold, after the world is 30 days old, one founding per 120 days, at most
+  8 towns). It takes a free side of the parent (north, south, east or west) where it does
+  not overlap anyone. The new town (`new_town` template, ~250 people) sends `RoadBuilt` to
+  its parent, which builds its own highway exit (so every town still changes only through
+  its messages, and browsers replay it exactly); up to 15 families of job seekers move
+  there as settlers.
+- **Intercity graph.** Highways are the top level of routing (`IntercityGraph::route`).
+  People visit, commute to and move to neighbouring towns.
+- **Snapshot format 7** (expansion state; `snapshot_v6.rs`).
+- **Runner.** Message logs for towns founded mid-run; per-town summaries in
+  `manifest.json` and a static file per town (map, buildings, roads).
+- **Browser.** Only the town being watched is downloaded and simulated; the others are
+  drawn from their static files (no people) and start being simulated when the visitor
+  goes there (`#town=ID` in the URL). Zoomed out, each town has a label with its figures;
+  highways are drawn from the manifest.
+- **Measured:** one runner job advances the whole world (10,500 people) by a day in
+  ~0.5 s, so sharding is not needed yet; it becomes useful at roughly a hundred towns.
+- **Deferred:** delta snapshots (checkpoints are small: ~1 MB for the city) and region
+  impostors simpler than the full static meshes.
 
 ## Phase 7 — Technology
 
