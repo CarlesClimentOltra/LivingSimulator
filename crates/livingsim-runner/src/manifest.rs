@@ -15,6 +15,25 @@ pub struct RegionInfo {
     /// World tile coordinates of the region's (0, 0) tile.
     pub origin: [i32; 2],
     pub size: u16,
+    /// Phase 6: a summary for the world map, and the region's static data (map, buildings,
+    /// roads) so browsers can draw towns they do not simulate.
+    #[serde(default)]
+    pub summary: RegionSummary,
+    #[serde(default)]
+    pub static_file: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct RegionSummary {
+    pub households: u32,
+    pub buildings: u32,
+    pub unemployment_permille: u32,
+    pub treasury_cents: i64,
+    pub under_construction: u32,
+    pub incidents_30d: u32,
+    pub inmates: u32,
+    pub founded_at: u32,
+    pub parent: Option<u16>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -75,6 +94,10 @@ pub struct Manifest {
 
 pub fn ver_of(sim_version: &str) -> String {
     sim_version.chars().take(16).collect()
+}
+
+pub fn static_path(ver: &str, tick: u32, region: u16) -> String {
+    format!("{ver}/static/{tick}/r{region}.json")
 }
 
 pub fn cp_path(ver: &str, tick: u32, region: u16) -> String {

@@ -319,9 +319,25 @@ fn tick(args: TickArgs) -> Result<(), String> {
         while world.tick < to {
             let t = world.tick;
             for (dest, msgs) in world.step_window() {
-                if let Some(l) = day_logs.get_mut(&dest) {
-                    l.deliveries.push((t, msgs));
-                }
+                // A town founded today has a log from today on.
+                day_logs
+                    .entry(dest)
+                    .or_insert_with(|| MessageLog {
+                        region: dest,
+                        from,
+                        to,
+                        deliveries: vec![],
+                    })
+                    .deliveries
+                    .push((t, msgs));
+            }
+            for r in &world.regions {
+                day_logs.entry(r.id).or_insert_with(|| MessageLog {
+                    region: r.id,
+                    from,
+                    to,
+                    deliveries: vec![],
+                });
             }
             debug_assert_eq!(world.tick, t + WINDOW);
         }
@@ -362,6 +378,15 @@ fn tick(args: TickArgs) -> Result<(), String> {
         }
     }
 
+    // Static data of every region at the frontier (for towns a browser does not simulate).
+    for r in &world.regions {
+        write(
+            &args.out,
+            &static_path(&ver, world.tick, r.id),
+            static_json(r).as_bytes(),
+        )?;
+    }
+
     let c = catalog::content();
     let manifest = Manifest {
         manifest_version: MANIFEST_VERSION,
@@ -386,6 +411,8 @@ fn tick(args: TickArgs) -> Result<(), String> {
                 population: r.population(),
                 origin: [r.origin.0, r.origin.1],
                 size: r.map.width,
+                summary: summary_of(r),
+                static_file: static_path(&ver, world.tick, r.id),
             })
             .collect(),
         highways: world
@@ -416,6 +443,64 @@ fn tick(args: TickArgs) -> Result<(), String> {
     }
     eprintln!("done in {:?}", started.elapsed());
     Ok(())
+}
+
+fn summary_of(r: &Region) -> RegionSummary {
+    let s = r.stats();
+    RegionSummary {
+        households: s.households,
+        buildings: s.buildings,
+        unemployment_permille: s.economy.unemployment_permille,
+        treasury_cents: s.economy.treasury_cents,
+        under_construction: s.construction.open.len() as u32,
+        incidents_30d: s.safety.by_crime_30d.iter().map(|(_, n)| n).sum(),
+        inmates: s.safety.inmates + s.safety.inmates_from_elsewhere,
+        founded_at: r.systems.expansion.founded_at,
+        parent: r.systems.expansion.parent,
+    }
+}
+
+fn base64(b: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(b.len().div_ceil(3) * 4);
+    for c in b.chunks(3) {
+        let n = (c[0] as u32) << 16
+            | (*c.get(1).unwrap_or(&0) as u32) << 8
+            | *c.get(2).unwrap_or(&0) as u32;
+        for k in 0..4 {
+            if k <= c.len() {
+                out.push(T[(n >> (18 - 6 * k) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+/// The same static data the browser gets from a simulated region (see `livingsim-wasm`).
+fn static_json(r: &Region) -> String {
+    use livingsim_core::render;
+    let gateways: Vec<_> = r
+        .gateways
+        .iter()
+        .map(|g| {
+            serde_json::json!({
+                "building": g.building, "to_region": g.to_region, "to_name": g.to_name, "node": g.node,
+                "x": r.roads.node_x[g.node as usize], "y": r.roads.node_y[g.node as usize],
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "info": {
+            "id": r.id, "name": r.name(), "width": r.map.width, "height": r.map.height,
+            "origin": [r.origin.0, r.origin.1], "gateways": gateways, "population": r.population(),
+        },
+        "tiles": base64(&r.map.kind),
+        "buildings": render::buildings_packed(r),
+        "roads": render::roads_packed(r),
+    })
+    .to_string()
 }
 
 fn write_checkpoint(world: &World, ver: &str, files: &mut Vec<(String, Vec<u8>)>) -> Checkpoint {
