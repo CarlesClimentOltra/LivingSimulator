@@ -7,6 +7,10 @@ import wasmUrl from '../wasm/livingsim_wasm_bg.wasm?url';
 import {
   AGENT_STRIDE,
   A_ACT,
+  A_PLACE,
+  BUILDING_STRIDE,
+  INCIDENT_STRIDE,
+  PATROL_STRIDE,
   A_FROM,
   A_INFO,
   A_TO,
@@ -78,6 +82,7 @@ async function boot() {
     return;
   }
   sim = new Sim();
+  contentLite = JSON.parse(content_json());
   const now = nowTick();
   const cps = manifest.checkpoints.filter((c) => c.tick <= now);
   const cp = cps.length ? cps[cps.length - 1] : manifest.checkpoints[0];
@@ -126,16 +131,73 @@ let lastSent = -1;
 let stalled = false;
 const staticVersions = new Map<number, number>();
 
+// Police patrols (cosmetic: cars drive between the station and places around town).
+interface ContentLite {
+  buildings: { tags: number[]; roof: string }[];
+  tags: string[];
+  activities: { kind: string }[];
+}
+let contentLite: ContentLite;
+const patrolInfo = new Map<number, { stations: number[]; targets: number[]; gateway: number }>();
+const PATROL_LEG = 16;
+
+function hashU(a: number, b: number): number {
+  let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x632be5ab, 0xc2b2ae35);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+  return (h ^ (h >>> 13)) >>> 0;
+}
+
 function statics(): RegionStatic[] {
   return regionIds.map((id) => {
     staticVersions.set(id, sim.static_version(id));
+    const info = JSON.parse(sim.region_info(id));
+    const buildings = sim.buildings(id);
+    const police = contentLite.tags.indexOf('police');
+    const stations: number[] = [];
+    const targets: number[] = [];
+    for (let b = 0; b * BUILDING_STRIDE < buildings.length; b++) {
+      const d = contentLite.buildings[buildings[b * BUILDING_STRIDE]];
+      if (police >= 0 && d.tags.includes(police)) stations.push(b);
+      if (d.roof !== 'None') targets.push(b);
+    }
+    const gateway = info.gateways.length ? info.gateways[0].building : -1;
+    patrolInfo.set(id, { stations, targets, gateway });
     return {
-      info: JSON.parse(sim.region_info(id)),
+      info,
       tiles: sim.tiles(id),
-      buildings: sim.buildings(id),
+      buildings,
       roads: sim.roads(id),
     };
   });
+}
+
+/** Patrol legs for the current tick: cars on duty drive every PATROL_LEG ticks. */
+function patrols(id: number, tick: number, agents: Uint32Array, incidents: Uint32Array): Uint32Array {
+  const p = patrolInfo.get(id);
+  if (!p || !p.targets.length) return new Uint32Array(0);
+  const workAct = contentLite.activities.findIndex((a) => a.kind === 'Work');
+  let onDuty = 0;
+  if (p.stations.length) {
+    const st = new Set(p.stations);
+    for (let i = 0; i < agents.length; i += AGENT_STRIDE) if (agents[i + A_ACT] === workAct && st.has(agents[i + A_PLACE])) onDuty++;
+  }
+  const hot: number[] = [];
+  for (let i = 0; i < incidents.length; i += INCIDENT_STRIDE) if (tick - incidents[i + 2] < 360 && incidents[i + 3] <= 2) hot.push(incidents[i]);
+  // Towns without a station: a car from the city comes while there is something to look into.
+  const cars = p.stations.length ? Math.min(8, Math.ceil(onDuty / 4)) : hot.length && p.gateway >= 0 ? 1 : 0;
+  const base = p.stations.length ? p.stations : [p.gateway];
+  const leg = Math.floor(tick / PATROL_LEG);
+  const target = (car: number, l: number) => {
+    const h = hashU(car * 7919 + id, l);
+    if (l % 4 === 0) return base[car % base.length];
+    if (hot.length && h % 3 === 0) return hot[h % hot.length];
+    return p.targets[h % p.targets.length];
+  };
+  const out = new Uint32Array(cars * PATROL_STRIDE);
+  for (let c = 0; c < cars; c++) {
+    out.set([target(c, leg - 1), target(c, leg), leg * PATROL_LEG, leg * PATROL_LEG + PATROL_LEG - 1], c * PATROL_STRIDE);
+  }
+  return out;
 }
 
 /** Resends the map when construction changed it (routes are recomputed too). */
@@ -186,8 +248,18 @@ function sendTick(catchingUp: boolean) {
   for (const id of regionIds) {
     const agents = sim.agents(id);
     const occupancy = sim.occupancy(id);
-    regions.push({ id, tick: sim.tick(id), agents, occupancy, sites: sim.sites(id) });
+    const incidents = sim.incidents(id);
+    const tick = sim.tick(id);
+    const legs = patrols(id, tick, agents, incidents);
+    regions.push({ id, tick, agents, occupancy, sites: sim.sites(id), incidents, patrols: legs });
     if (catchingUp) continue;
+    for (let i = 0; i < legs.length; i += PATROL_STRIDE) {
+      if (legs[i] === legs[i + 1]) continue;
+      const key = `${id}/${routeKey(legs[i], legs[i + 1], true)}`;
+      if (sentRoutes.has(key)) continue;
+      sentRoutes.add(key);
+      routes.push({ key, pts: sim.route(id, legs[i], legs[i + 1], true) });
+    }
     for (let i = 0; i < agents.length; i += AGENT_STRIDE) {
       if (agents[i + A_ACT] !== R_TRAVEL) continue;
       const car = (agents[i + A_INFO] & F_CAR) !== 0;
@@ -200,7 +272,7 @@ function sendTick(catchingUp: boolean) {
   lastSent = sim.tick(regionIds[0]);
   post(
     { type: 'tick', regions, routes, catchingUp },
-    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer, r.sites.buffer]), ...routes.map((r) => r.pts.buffer)],
+    [...regions.flatMap((r) => [r.agents.buffer, r.occupancy.buffer, r.sites.buffer, r.incidents.buffer, r.patrols.buffer]), ...routes.map((r) => r.pts.buffer)],
   );
 }
 

@@ -130,6 +130,10 @@ impl Sim {
         Ok(self.get(region)?.region.systems.construction.static_version)
     }
 
+    pub fn incidents(&self, region: u16) -> Result<Vec<u32>, JsError> {
+        Ok(render::incidents_packed(&self.get(region)?.region))
+    }
+
     pub fn sites(&self, region: u16) -> Result<Vec<u32>, JsError> {
         Ok(render::sites_packed(&self.get(region)?.region))
     }

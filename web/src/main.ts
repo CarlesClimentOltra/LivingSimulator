@@ -60,6 +60,8 @@ worker.onmessage = (ev: MessageEvent<FromWorker>) => {
         const ri = statics.findIndex((s) => s.info.id === r.id);
         city?.setOccupancy(ri, r.occupancy);
         city?.setSites(ri, r.sites);
+        city?.setIncidents(ri, r.incidents, r.tick);
+        people?.setPatrols(r.id, r.patrols);
         simTick = r.tick;
       }
       catchingUp = m.catchingUp;
