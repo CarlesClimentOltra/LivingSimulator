@@ -555,10 +555,11 @@ pub enum NewsKind {
     Verdict = 26,
     Acquittal = 27,
     Homicide = 28,
+    TownFounded = 29,
 }
 
 impl NewsKind {
-    pub const ALL: [NewsKind; 29] = [
+    pub const ALL: [NewsKind; 30] = [
         NewsKind::DailySummary,
         NewsKind::BusiestPlace,
         NewsKind::ShelvesEmpty,
@@ -588,6 +589,7 @@ impl NewsKind {
         NewsKind::Verdict,
         NewsKind::Acquittal,
         NewsKind::Homicide,
+        NewsKind::TownFounded,
     ];
     pub fn id(self) -> &'static str {
         match self {
@@ -620,6 +622,7 @@ impl NewsKind {
             NewsKind::Verdict => "verdict",
             NewsKind::Acquittal => "acquittal",
             NewsKind::Homicide => "homicide",
+            NewsKind::TownFounded => "town_founded",
         }
     }
     pub fn from_u16(v: u16) -> Option<NewsKind> {
@@ -707,6 +710,35 @@ pub struct WorldDef {
     /// Highway length between neighbouring initial regions (tiles).
     pub highway_tiles: u32,
     pub templates: Vec<RegionTemplate>,
+    pub expansion: ExpansionDef,
+}
+
+/// When and how new towns are founded (Phase 6, `world.ron`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ExpansionDef {
+    /// Template of founded towns.
+    pub template: u16,
+    pub max_regions: u16,
+    /// No founding before the world is this old.
+    pub min_world_age_days: u16,
+    /// Days between two foundings (whole world).
+    pub cooldown_days: u16,
+    /// Pressure points a town needs to found a new one.
+    pub threshold: u32,
+    /// Points per person who left the town for lack of work or a home.
+    pub points_per_emigrant: u32,
+    /// Daily points per household waiting for a home of its own (beyond free homes).
+    pub points_per_waiting_household: u32,
+    /// Daily points per long-term job seeker (‰ of a point).
+    pub points_per_jobseeker_permille: u32,
+    /// Job seekers count as long-term after this many days.
+    pub long_term_jobseeker_days: u16,
+    /// Households of long-term job seekers that move to a newly founded town.
+    pub settler_households: u16,
+    /// Points are multiplied by this (‰) when the town has no room left to grow.
+    pub full_land_multiplier_permille: u32,
+    /// "No room left": fewer free lots than this and no block left to open.
+    pub full_land_free_lots: u32,
 }
 
 // ---- Content for later phases: schemas exist now so contributors can start adding data.

@@ -29,5 +29,34 @@
             park_permille: 0,
             required: {"village_school": 1, "corner_shop": 2, "farm": 4, "bar": 1, "cafe": 1, "real_estate_agency": 1, "daycare": 1},
         ),
+        (
+            // Founded towns (Phase 6): a small settlement with room to grow.
+            id: "new_town",
+            blocks: 5,
+            target_population: 220,
+            max_blocks: 15,
+            rings: [(1, Mixed), (99, Residential)],
+            park_permille: 0,
+            required: {"village_school": 1, "corner_shop": 1, "cafe": 1, "real_estate_agency": 1, "daycare": 1},
+        ),
     ],
+    // New towns (Phase 6). Every morning each town gathers "pressure" from long-term job
+    // seekers, people who had to leave (no job, no home) and households waiting for a home;
+    // much more when it has no room left. When a town's pressure reaches the threshold,
+    // settlers found a new town down a new highway (one founding per cooldown in the whole
+    // world), and some families of job seekers move there.
+    expansion: (
+        template: "new_town",
+        max_regions: 8,
+        min_world_age_days: 30,
+        cooldown_days: 120,
+        threshold: 400,
+        points_per_emigrant: 4,
+        points_per_waiting_household: 1,
+        points_per_jobseeker_permille: 50,
+        long_term_jobseeker_days: 30,
+        settler_households: 15,
+        full_land_multiplier_permille: 4000,
+        full_land_free_lots: 6,
+    ),
 )
