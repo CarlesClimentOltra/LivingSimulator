@@ -286,6 +286,24 @@ pub struct World {
     pub initial_regions: Vec<(String, String)>,
     pub highway_tiles: u32,
     pub templates: Vec<RegionTemplate>,
+    pub expansion: Expansion,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Expansion {
+    pub template: String,
+    pub max_regions: u16,
+    pub min_world_age_days: u16,
+    pub cooldown_days: u16,
+    pub threshold: u32,
+    pub points_per_emigrant: u32,
+    pub points_per_waiting_household: u32,
+    pub points_per_jobseeker_permille: u32,
+    pub long_term_jobseeker_days: u16,
+    pub settler_households: u16,
+    pub full_land_multiplier_permille: u32,
+    pub full_land_free_lots: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

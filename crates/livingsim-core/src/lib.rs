@@ -31,6 +31,7 @@ pub mod roads;
 pub mod snapshot;
 pub mod snapshot_v4;
 pub mod snapshot_v5;
+pub mod snapshot_v6;
 pub mod systems;
 pub mod time;
 pub mod world;

@@ -83,40 +83,11 @@ async function boot() {
   }
   sim = new Sim();
   contentLite = JSON.parse(content_json());
-  const now = nowTick();
-  const cps = manifest.checkpoints.filter((c) => c.tick <= now);
-  const cp = cps.length ? cps[cps.length - 1] : manifest.checkpoints[0];
-  let i = 0;
-  for (const r of cp.regions) {
-    post({ type: 'progress', label: `Downloading ${manifest.regions.find((x) => x.id === r.id)?.name ?? 'region'}…`, done: i++, total: cp.regions.length });
-    sim.load_region(await fetchBytes(`${manifest.ver}/cp/${cp.tick}/r${r.id}.bin.zst`));
-    regionIds.push(r.id);
-    await ensureLogs(r.id);
-  }
-  // Catch up to now, in slices so we can report progress.
-  const start = cp.tick;
-  const goal = () => Math.min(Math.floor(nowTick()) + 1, Math.max(...regionIds.map((r) => sim.known_until(r))));
-  let target = goal();
-  const t0 = performance.now();
-  while (true) {
-    let behind = false;
-    for (const r of regionIds) {
-      const tr = Math.min(target, sim.known_until(r));
-      if (sim.tick(r) < tr) {
-        sim.step_to(r, tr, 120);
-        behind = behind || sim.tick(r) < tr;
-      }
-      await ensureLogs(r);
-    }
-    const done = Math.min(...regionIds.map((r) => sim.tick(r))) - start;
-    post({ type: 'progress', label: 'Catching up with the present…', done, total: Math.max(1, target - start) });
-    if (!behind) break;
-    target = goal();
-    // Let the event loop breathe (progress messages, requests).
-    await new Promise((r) => setTimeout(r, 0));
-  }
-  console.info(`caught up ${target - start} ticks in ${(performance.now() - t0).toFixed(0)} ms`);
-
+  // Only the town being watched is simulated; the others are drawn from static files and
+  // simulated once the visitor goes there (region streaming, Phase 6).
+  const first = manifest.regions.some((r) => r.id === focusId) ? focusId : manifest.regions[0].id;
+  await loadLive(first, true);
+  await fetchRemote();
   const regions = statics();
   post(
     { type: 'ready', manifest, content: content_json(), regions },
@@ -125,6 +96,75 @@ async function boot() {
   sendTick(false);
   setInterval(loop, 250);
   setInterval(refreshManifest, 5 * 60 * 1000);
+}
+
+let focusId = 0;
+/** Static data of towns that are not simulated here. */
+const remote = new Map<number, { file: string; data: RegionStatic }>();
+
+/** Downloads a town's checkpoint and messages and catches it up with the present. */
+async function loadLive(id: number, boot: boolean) {
+  if (regionIds.includes(id)) return;
+  const name = manifest.regions.find((x) => x.id === id)?.name ?? 'the town';
+  const say = (label: string, done: number, total: number) =>
+    boot ? post({ type: 'progress', label, done, total }) : post({ type: 'busy', message: label });
+  say(`Downloading ${name}…`, 0, 1);
+  const now = nowTick();
+  const cps = manifest.checkpoints.filter((c) => c.regions.some((r) => r.id === id));
+  const before = cps.filter((c) => c.tick <= now);
+  const cp = before.length ? before[before.length - 1] : cps[0];
+  if (!cp) throw new Error(`no checkpoint for region ${id}`);
+  sim.load_region(await fetchBytes(`${manifest.ver}/cp/${cp.tick}/r${id}.bin.zst`));
+  await ensureLogs(id);
+  const start = cp.tick;
+  const t0 = performance.now();
+  for (;;) {
+    const target = Math.min(Math.floor(nowTick()) + 1, sim.known_until(id));
+    if (sim.tick(id) >= target) break;
+    sim.step_to(id, target, 120);
+    await ensureLogs(id);
+    say(`Catching up with the present in ${name}…`, sim.tick(id) - start, Math.max(1, target - start));
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  console.info(`${name}: caught up ${sim.tick(id) - start} ticks in ${(performance.now() - t0).toFixed(0)} ms`);
+  regionIds.push(id);
+  remote.delete(id);
+  if (!boot) post({ type: 'busy', message: null });
+}
+
+function b64(s: string): Uint8Array {
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Static files of the towns not simulated here (refetched when the runner publishes). */
+async function fetchRemote(): Promise<boolean> {
+  let changed = false;
+  for (const r of manifest.regions) {
+    if (regionIds.includes(r.id) || !r.static_file) continue;
+    if (remote.get(r.id)?.file === r.static_file) continue;
+    try {
+      const res = await fetch(base + r.static_file, { cache: 'force-cache' });
+      if (!res.ok) continue;
+      const j = await res.json();
+      remote.set(r.id, {
+        file: r.static_file,
+        data: { info: j.info, tiles: b64(j.tiles), buildings: Uint32Array.from(j.buildings), roads: Uint32Array.from(j.roads), live: false },
+      });
+      changed = true;
+    } catch {
+      // Not published yet: drawn later.
+    }
+  }
+  return changed;
+}
+
+function postStatics() {
+  const regions = statics();
+  sentRoutes.clear();
+  post({ type: 'static', regions, highways: manifest.highways }, regions.flatMap((r) => [r.tiles.buffer, r.buildings.buffer, r.roads.buffer]));
 }
 
 let lastSent = -1;
@@ -148,7 +188,20 @@ function hashU(a: number, b: number): number {
 }
 
 function statics(): RegionStatic[] {
-  return regionIds.map((id) => {
+  const out: RegionStatic[] = [];
+  for (const m of manifest.regions) {
+    if (regionIds.includes(m.id)) out.push(liveStatic(m.id));
+    else {
+      const r = remote.get(m.id);
+      // Copies: the originals stay here for the next refresh.
+      if (r) out.push({ ...r.data, tiles: r.data.tiles.slice(), buildings: r.data.buildings.slice(), roads: r.data.roads.slice() });
+    }
+  }
+  return out;
+}
+
+function liveStatic(id: number): RegionStatic {
+  {
     staticVersions.set(id, sim.static_version(id));
     const info = JSON.parse(sim.region_info(id));
     const buildings = sim.buildings(id);
@@ -167,8 +220,9 @@ function statics(): RegionStatic[] {
       tiles: sim.tiles(id),
       buildings,
       roads: sim.roads(id),
+      live: true,
     };
-  });
+  }
 }
 
 /** Patrol legs for the current tick: cars on duty drive every PATROL_LEG ticks. */
@@ -203,9 +257,7 @@ function patrols(id: number, tick: number, agents: Uint32Array, incidents: Uint3
 /** Resends the map when construction changed it (routes are recomputed too). */
 function checkStatic() {
   if (!regionIds.some((id) => sim.static_version(id) !== staticVersions.get(id))) return;
-  const regions = statics();
-  sentRoutes.clear();
-  post({ type: 'static', regions }, regions.flatMap((r) => [r.tiles.buffer, r.buildings.buffer, r.roads.buffer]));
+  postStatics();
 }
 
 async function loop() {
@@ -284,6 +336,8 @@ async function refreshManifest() {
       return;
     }
     manifest = m;
+    // New towns, or fresh static data of the towns drawn from files.
+    if (await fetchRemote()) postStatics();
   } catch {
     // Offline or Pages hiccup: try again later.
   }
@@ -295,19 +349,35 @@ self.onmessage = (ev: MessageEvent<ToWorker>) => {
     switch (m.type) {
       case 'init':
         base = m.base;
+        focusId = m.focus ?? 0;
         boot().catch((e) => post({ type: 'error', message: String(e?.message ?? e) }));
         break;
+      case 'focus':
+        if (!regionIds.includes(m.region) && manifest.regions.some((r) => r.id === m.region)) {
+          busy = true;
+          loadLive(m.region, false)
+            .then(() => {
+              postStatics();
+              sendTick(false);
+            })
+            .catch((e) => post({ type: 'error', message: String(e?.message ?? e) }))
+            .finally(() => {
+              busy = false;
+            });
+        }
+        break;
+      // Towns not simulated here have no cards or stats yet (null until they are loaded).
       case 'card':
-        post({ type: 'reply', req: m.req, json: sim.agent_card(m.region, m.agent) });
+        post({ type: 'reply', req: m.req, json: regionIds.includes(m.region) ? sim.agent_card(m.region, m.agent) : 'null' });
         break;
       case 'building':
-        post({ type: 'reply', req: m.req, json: sim.building_card(m.region, m.building) });
+        post({ type: 'reply', req: m.req, json: regionIds.includes(m.region) ? sim.building_card(m.region, m.building) : 'null' });
         break;
       case 'stats':
-        post({ type: 'reply', req: m.req, json: sim.stats(m.region) });
+        post({ type: 'reply', req: m.req, json: regionIds.includes(m.region) ? sim.stats(m.region) : 'null' });
         break;
       case 'news':
-        post({ type: 'reply', req: m.req, json: sim.news(m.region) });
+        post({ type: 'reply', req: m.req, json: regionIds.includes(m.region) ? sim.news(m.region) : 'null' });
         break;
     }
   } catch (e) {

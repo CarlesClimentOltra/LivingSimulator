@@ -665,10 +665,35 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
             if initial.is_empty() {
                 ctx.err("world.ron: at least one initial region is required");
             }
+            let e = &w.expansion;
+            let template = match find(&template_ids, &e.template) {
+                Some(t) => t,
+                None => {
+                    ctx.err(format!(
+                        "world.ron expansion: unknown template `{}`",
+                        e.template
+                    ));
+                    0
+                }
+            };
             WorldDef {
                 initial_regions: initial,
                 highway_tiles: w.highway_tiles,
                 templates,
+                expansion: ExpansionDef {
+                    template,
+                    max_regions: e.max_regions.max(1),
+                    min_world_age_days: e.min_world_age_days,
+                    cooldown_days: e.cooldown_days,
+                    threshold: e.threshold.max(1),
+                    points_per_emigrant: e.points_per_emigrant,
+                    points_per_waiting_household: e.points_per_waiting_household,
+                    points_per_jobseeker_permille: e.points_per_jobseeker_permille,
+                    long_term_jobseeker_days: e.long_term_jobseeker_days,
+                    settler_households: e.settler_households,
+                    full_land_multiplier_permille: e.full_land_multiplier_permille,
+                    full_land_free_lots: e.full_land_free_lots,
+                },
             }
         }
         None => {
@@ -677,6 +702,7 @@ pub fn compile(raw: &RawContent) -> Result<Content, ContentError> {
                 initial_regions: vec![],
                 highway_tiles: 0,
                 templates: vec![],
+                expansion: ExpansionDef::default(),
             }
         }
     };

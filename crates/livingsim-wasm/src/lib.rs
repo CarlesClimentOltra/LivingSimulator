@@ -104,7 +104,7 @@ impl Sim {
         let gateways: Vec<_> = r
             .gateways
             .iter()
-            .map(|g| serde_json::json!({"building": g.building, "to_region": g.to_region, "to_name": g.to_name, "node": g.node}))
+            .map(|g| serde_json::json!({"building": g.building, "to_region": g.to_region, "to_name": g.to_name, "node": g.node, "x": r.roads.node_x[g.node as usize], "y": r.roads.node_y[g.node as usize]}))
             .collect();
         Ok(serde_json::json!({
             "id": r.id, "name": r.name(), "width": r.map.width, "height": r.map.height,

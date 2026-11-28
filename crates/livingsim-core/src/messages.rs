@@ -59,9 +59,12 @@ pub enum Body {
         good: u16,
         qty: u32,
     },
-    /// Phase 6: a new highway connects regions.
+    /// Phase 6: a new town (the source) was founded next to the destination, which builds
+    /// its highway exit on `side` (`gen::Side` code).
     RoadBuilt {
-        from_gateway: u32,
+        side: u8,
+        name: String,
+        highway_ticks: crate::time::Tick,
     },
     /// Phase 7: a technology spreads.
     TechDiffusion {

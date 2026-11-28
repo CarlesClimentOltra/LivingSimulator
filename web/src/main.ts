@@ -8,7 +8,7 @@ import { People } from './render/people';
 import { Stage } from './render/scene';
 import type { FromWorker, Manifest, RegionStatic, ToWorker } from './sim/protocol';
 import { formatClock, formatDate, tickAt } from './sim/time';
-import { renderAgentCard, renderBuildingCard, renderNews, renderStats, setSiteHandler, type AgentCard, type BuildingCard, type NewsLine, type Stats } from './ui/panels';
+import { h, renderAgentCard, renderBuildingCard, renderNews, renderStats, setSiteHandler, type AgentCard, type BuildingCard, type NewsLine, type Stats } from './ui/panels';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -69,8 +69,19 @@ worker.onmessage = (ev: MessageEvent<FromWorker>) => {
     case 'static':
       if (!city) break;
       statics = m.regions;
+      if (m.highways) {
+        manifest.highways = m.highways;
+        city.highways = m.highways;
+      }
       city.rebuild(m.regions);
       people.clearRoutes();
+      buildRegionButtons();
+      buildLabels();
+      refreshSide();
+      break;
+    case 'busy':
+      $('notice').textContent = m.message ?? '';
+      $('notice').classList.toggle('hidden', !m.message);
       break;
     case 'reply':
       pending.get(m.req)?.(m.json);
@@ -90,20 +101,24 @@ worker.onmessage = (ev: MessageEvent<FromWorker>) => {
       break;
   }
 };
-worker.postMessage({ type: 'init', base: new URL('./world/', location.href).href } satisfies ToWorker);
+// "#town=2" opens (and simulates) that town first.
+const hashTown = Number(new URLSearchParams(location.hash.slice(1)).get('town') ?? '0') || 0;
+worker.postMessage({ type: 'init', base: new URL('./world/', location.href).href, focus: hashTown } satisfies ToWorker);
 
 function onReady(m: Manifest, content: Content, regions: RegionStatic[]) {
   manifest = m;
   statics = regions;
   city = new City(content, stage.night);
+  city.highways = m.highways;
   city.build(regions);
   stage.scene.add(city.group);
   const total = m.regions.reduce((a, r) => a + r.population, 0);
   people = new People(content, city.regions, Math.max(4096, Math.ceil(total * 1.3)));
   stage.scene.add(people.group);
   stage.scene.add(marker);
-  focusRegion(0);
+  focusRegion(Math.max(0, statics.findIndex((s) => s.info.id === hashTown)));
   buildRegionButtons();
+  buildLabels();
   $('loading').classList.add('hidden');
   refreshSide();
   setInterval(refreshSide, 10_000);
@@ -114,6 +129,9 @@ function focusRegion(i: number) {
   const r = statics[i];
   if (!r) return;
   activeRegion = i;
+  // Towns drawn from files start being simulated here when the visitor goes there.
+  if (!r.live) worker.postMessage({ type: 'focus', region: r.info.id } satisfies ToWorker);
+  history.replaceState(null, '', r.info.id ? `#town=${r.info.id}` : location.pathname + location.search);
   stage.lookAt(r.info.origin[0] + r.info.width / 2, r.info.origin[1] + r.info.height / 2);
   following = false;
   document.querySelectorAll('#regions button').forEach((b, k) => b.classList.toggle('active', k === i));
@@ -136,9 +154,11 @@ function buildRegionButtons() {
   world.addEventListener('click', () => {
     const minX = Math.min(...statics.map((s) => s.info.origin[0]));
     const maxX = Math.max(...statics.map((s) => s.info.origin[0] + s.info.width));
-    const cz = statics[0].info.origin[1] + statics[0].info.height / 2;
-    stage.lookAt((minX + maxX) / 2, cz);
-    stage.camera.zoom = 0.12;
+    const minZ = Math.min(...statics.map((s) => s.info.origin[1]));
+    const maxZ = Math.max(...statics.map((s) => s.info.origin[1] + s.info.height));
+    stage.lookAt((minX + maxX) / 2, (minZ + maxZ) / 2);
+    // Fit every town (the camera shows roughly 1/zoom * 120 tiles across).
+    stage.camera.zoom = Math.min(0.3, 130 / Math.max(maxX - minX, maxZ - minZ, 1));
     stage.camera.updateProjectionMatrix();
     following = false;
   });
@@ -160,9 +180,63 @@ if (window.innerWidth < 720) $('side').classList.add('collapsed');
 
 async function refreshSide() {
   if (!statics.length) return;
-  const region = statics[activeRegion].info.id;
-  if (sideTab === 'stats') renderStats($('side-body'), await ask<Stats>({ type: 'stats', region }));
-  else renderNews($('side-body'), statics[activeRegion].info.name, await ask<NewsLine[]>({ type: 'news', region }));
+  const r = statics[activeRegion];
+  const region = r.info.id;
+  if (!r.live) {
+    $('side-body').replaceChildren(h('h2', {}, r.info.name), h('p', { class: 'muted' }, 'Loading this town…'));
+    return;
+  }
+  if (sideTab === 'stats') {
+    const s = await ask<Stats | null>({ type: 'stats', region });
+    if (s) renderStats($('side-body'), s);
+  } else {
+    const n = await ask<NewsLine[] | null>({ type: 'news', region });
+    if (n) renderNews($('side-body'), r.info.name, n);
+  }
+}
+
+// ---------------------------------------------------------------- world map labels
+
+/** One label per town, shown when zoomed out: name, people and a few figures. */
+const labels: HTMLElement[] = [];
+function buildLabels() {
+  const layer = $('labels');
+  layer.replaceChildren();
+  labels.length = 0;
+  statics.forEach((s, i) => {
+    const m = manifest.regions.find((r) => r.id === s.info.id);
+    const sum = m?.summary;
+    const parent = sum?.parent != null ? manifest.regions.find((r) => r.id === sum.parent)?.name : null;
+    const el = h(
+      'button',
+      { class: 'town-label' },
+      h('strong', {}, s.info.name),
+      h('span', {}, `${(m?.population ?? s.info.population).toLocaleString('en-US')} people`),
+      sum ? h('span', { class: 'muted' }, `${(sum.unemployment_permille / 10).toFixed(1)}% unemployed · ${sum.under_construction} building sites`) : null,
+      parent ? h('span', { class: 'muted' }, `founded by settlers from ${parent}`) : null,
+    );
+    el.addEventListener('click', () => {
+      focusRegion(i);
+      stage.camera.zoom = 1;
+      stage.camera.updateProjectionMatrix();
+    });
+    layer.append(el);
+    labels.push(el);
+  });
+}
+
+const tmpV = new THREE.Vector3();
+function updateLabels() {
+  const show = stage.camera.zoom < 0.45;
+  $('labels').classList.toggle('hidden', !show);
+  if (!show) return;
+  const rect = stage.renderer.domElement.getBoundingClientRect();
+  statics.forEach((s, i) => {
+    const el = labels[i];
+    if (!el) return;
+    tmpV.set(s.info.origin[0] + s.info.width / 2, 2, s.info.origin[1] + s.info.height / 2).project(stage.camera);
+    el.style.transform = `translate(${((tmpV.x + 1) / 2) * rect.width}px, ${((1 - tmpV.y) / 2) * rect.height}px) translate(-50%, -50%)`;
+  });
 }
 
 // ---------------------------------------------------------------- cards and picking
@@ -272,6 +346,7 @@ function frame() {
   } else {
     marker.visible = false;
   }
+  updateLabels();
   $('time').textContent = formatClock(t);
   $('date').textContent = formatDate(t) + (catchingUp ? ' · catching up…' : '');
   stage.render();

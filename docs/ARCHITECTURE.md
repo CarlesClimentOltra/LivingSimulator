@@ -338,10 +338,13 @@ Consequences:
 ### 5.4 Hierarchical pathfinding across regions
 
 * Inside a region: A* on the road graph (§6).
-* Between regions: an `IntercityGraph` whose nodes are **gateways** (where a highway
-  crosses a region border) and whose edges are highways with precomputed travel times
-  (HPA* style). It is replicated in every region snapshot (it is small) and only changes
-  through `RoadBuilt` messages, so every region sees the same version at the same window.
+* Between regions: an `IntercityGraph` whose nodes are regions (reached through their
+  **gateways**, where a highway crosses the border) and whose edges are highways
+  (`IntercityGraph::route`, Dijkstra). It lives in the world and in `manifest.json`.
+* New towns (Phase 6) are founded by the world at 06:00 (`World::maybe_found`) from the
+  regions' own pressure; the new region announces itself with a `RoadBuilt` message and
+  its parent builds the matching highway exit when it receives it, so a region still
+  changes only through its inbox.
 
 ---
 
@@ -423,7 +426,7 @@ the others exist as **types and stubs** (compiling, no-op or minimal) from Phase
 | `construction`  | 4 | weekly demand → lots or new streets → funder pays each phase → builder crews on site → opening (firm, landlord, news) |
 | `crime`         | 5 | motive (honesty, temper, money trouble, conflict, record) → offences planned at 06:00, executed on the hour; neighbourhood safety |
 | `justice`       | 5 | evidence from witnesses and police shifts, arrests, fines, custody, trials, sentences, jail (or the neighbour's jail via `Prisoner` messages) |
-| `expansion`     | 6 | new regions/cities founded, highways |
+| `expansion`     | 6 | founding pressure (job seekers, people leaving, housing, no room left), new towns with settlers, highway exits (`RoadBuilt`) |
 | `technology`    | 7 | tech tree, research points, unlocks |
 | `news`          | 1→ | turns notable events into newspaper items (MVP: daily summary) |
 
@@ -456,8 +459,9 @@ newspaper headlines. No blood, no gore.
   by the real state. A migrated region adds its growth ring of empty land on its first
   morning (`bootstrap_construction`), shifting every coordinate and its world origin so
   nothing moves on screen. Format 6 (Phase 5) replaces the crime and justice stubs and
-  adds crime ids to the content ids; `snapshot_v5.rs` describes formats 4 and 5 with one
-  generic struct and frozen parts. Formats 1–3 are not migrated (their content indices are
+  adds crime ids to the content ids; `snapshot_v5.rs` describes formats 4 to 6 with one
+  generic struct and frozen parts. Format 7 (Phase 6) replaces the expansion stub
+  (`snapshot_v6.rs`). Formats 1–3 are not migrated (their content indices are
   ambiguous); the runner regenerates the world instead.
 * `sim_version` changes on every engine/content change. A deploy with a new version
   **rebases** the world: the runner takes the latest checkpoint `≤ now`, migrates it, and

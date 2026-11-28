@@ -15,10 +15,61 @@ pub struct Highway {
     pub length_tiles: u32,
 }
 
-/// Highways between regions' gateways (HPA*-style top level; tiny for now).
+/// Highways between regions' gateways: the top level of hierarchical routing (inside a
+/// region, the road graph; between regions, this graph of highways).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct IntercityGraph {
     pub highways: Vec<Highway>,
+}
+
+impl IntercityGraph {
+    /// Regions along the shortest highway route from `a` to `b` (both included), and its
+    /// length in tiles; `None` if they are not connected.
+    pub fn route(&self, a: u16, b: u16) -> Option<(Vec<u16>, u32)> {
+        let n = self
+            .highways
+            .iter()
+            .map(|h| h.a.max(h.b) as usize + 1)
+            .max()
+            .unwrap_or(0)
+            .max(a.max(b) as usize + 1);
+        let mut dist = vec![u32::MAX; n];
+        let mut prev = vec![u16::MAX; n];
+        let mut done = vec![false; n];
+        dist[a as usize] = 0;
+        // Few regions: a linear scan is enough (ties: lowest id).
+        while let Some(u) = (0..n)
+            .filter(|i| !done[*i] && dist[*i] != u32::MAX)
+            .min_by_key(|i| (dist[*i], *i))
+        {
+            done[u] = true;
+            for h in &self.highways {
+                let v = if h.a as usize == u {
+                    h.b
+                } else if h.b as usize == u {
+                    h.a
+                } else {
+                    continue;
+                };
+                let d = dist[u] + h.length_tiles;
+                if d < dist[v as usize] {
+                    dist[v as usize] = d;
+                    prev[v as usize] = u as u16;
+                }
+            }
+        }
+        if dist[b as usize] == u32::MAX {
+            return None;
+        }
+        let mut path = vec![b];
+        let mut cur = b;
+        while cur != a {
+            cur = prev[cur as usize];
+            path.push(cur);
+        }
+        path.reverse();
+        Some((path, dist[b as usize]))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -123,6 +174,9 @@ impl World {
 
     /// Exchanges messages between regions (start of a window). Returns what was delivered.
     pub fn exchange(&mut self) -> Deliveries {
+        if self.tick.is_multiple_of(crate::time::TICKS_PER_DAY) {
+            self.maybe_found();
+        }
         let mut all: Vec<Message> = Vec::new();
         for r in self.regions.iter_mut() {
             all.extend(r.take_outbox());
@@ -142,6 +196,132 @@ impl World {
             self.regions[*d as usize].receive(msgs);
         }
         out
+    }
+
+    /// Phase 6: founds a new town next to the town under most pressure, when the world is
+    /// old enough, no town was founded recently and there is room on the map. Runs at
+    /// 06:00, before the exchange, so the new town's `RoadBuilt` message reaches its parent
+    /// in the same window (and in the parent's message log).
+    fn maybe_found(&mut self) {
+        let c = content();
+        let e = &c.world.expansion;
+        let day = crate::time::TICKS_PER_DAY;
+        if self.regions.len() >= e.max_regions as usize
+            || self.tick < e.min_world_age_days as Tick * day
+        {
+            return;
+        }
+        let last = self
+            .regions
+            .iter()
+            .map(|r| r.systems.expansion.founded_at)
+            .max()
+            .unwrap_or(0);
+        if last > 0 && self.tick < last + e.cooldown_days as Tick * day {
+            return;
+        }
+        // Candidates: towns over the threshold, most pressure first.
+        let mut cands: Vec<(u32, u16)> = self
+            .regions
+            .iter()
+            .filter(|r| r.systems.expansion.pressure >= e.threshold)
+            .map(|r| (r.systems.expansion.pressure, r.id))
+            .collect();
+        cands.sort_by(|x, y| y.0.cmp(&x.0).then(x.1.cmp(&y.1)));
+        for (_, p) in cands {
+            if let Some((side, origin)) = self.free_side(p) {
+                self.found(p, side, origin);
+                return;
+            }
+        }
+    }
+
+    /// A side of region `p` without a highway exit where a new town fits; returns the side
+    /// and the new town's origin.
+    fn free_side(&self, p: u16) -> Option<(Side, (i32, i32))> {
+        let c = content();
+        let tpl = c.world.expansion.template;
+        let t = &c.world.templates[tpl as usize];
+        let size =
+            (region_size(tpl) + (t.max_blocks - t.blocks) / 2 * 2 * crate::map::PITCH) as i32;
+        // The new town's gateway sits on its central line, like every town's.
+        let centre =
+            (crate::map::MARGIN as i32) + (t.max_blocks as i32 / 2) * crate::map::PITCH as i32;
+        let gap = (c.world.highway_tiles / 4) as i32;
+        let parent = &self.regions[p as usize];
+        let used: Vec<Side> = (0..parent.gateways.len())
+            .map(|g| parent.gateway_side(g))
+            .collect();
+        for side in [Side::North, Side::South, Side::East, Side::West] {
+            if used.contains(&side) {
+                continue;
+            }
+            let (gx, gy) = parent.gateway_point(side);
+            let (wx, wy) = (parent.origin.0 + gx as i32, parent.origin.1 + gy as i32);
+            let origin = match side {
+                Side::North => (wx - centre, wy - gap - (size - 1)),
+                Side::South => (wx - centre, wy + gap),
+                Side::East => (wx + gap, wy - centre),
+                Side::West => (wx - gap - (size - 1), wy - centre),
+            };
+            let margin = 40;
+            let overlaps = self.regions.iter().any(|r| {
+                let (ax0, ay0) = (origin.0 - margin, origin.1 - margin);
+                let (ax1, ay1) = (origin.0 + size + margin, origin.1 + size + margin);
+                let (bx0, by0) = r.origin;
+                let (bx1, by1) = (bx0 + r.map.width as i32, by0 + r.map.height as i32);
+                ax0 < bx1 && bx0 < ax1 && ay0 < by1 && by0 < ay1
+            });
+            if !overlaps {
+                return Some((side, origin));
+            }
+        }
+        None
+    }
+
+    /// Founds a new town next to region `p` now, if a side is free (tests and tools; the
+    /// simulation itself decides in `maybe_found`). Returns the new region id.
+    pub fn found_town(&mut self, p: u16) -> Option<u16> {
+        let (side, origin) = self.free_side(p)?;
+        self.found(p, side, origin);
+        Some(self.regions.len() as u16 - 1)
+    }
+
+    fn found(&mut self, p: u16, side: Side, origin: (i32, i32)) {
+        let c = content();
+        let tpl = c.world.expansion.template;
+        let id = self.regions.len() as u16;
+        let style = id % c.names.styles.len() as u16;
+        let name = region_name(self.seed, id, style);
+        let hw = c.world.highway_tiles;
+        let hw_ticks = (hw
+            * decis_per_tile(crate::roads::Mode::Car, crate::roads::RoadClass::Highway))
+        .div_ceil(600);
+        let parent_name = self.regions[p as usize].name().to_string();
+        let spec = GatewaySpec {
+            side: side.opposite(),
+            to_region: p,
+            to_name: parent_name,
+            highway_ticks: hw_ticks,
+        };
+        let mut r = generate_region(id, tpl, style, self.seed, self.tick, &[spec]);
+        r.origin = origin;
+        r.systems.expansion.founded_at = self.tick;
+        r.systems.expansion.parent = Some(p);
+        r.send(
+            p,
+            crate::messages::Body::RoadBuilt {
+                side: side.code(),
+                name: name.clone(),
+                highway_ticks: hw_ticks,
+            },
+        );
+        self.regions.push(r);
+        self.intercity.highways.push(Highway {
+            a: p,
+            b: id,
+            length_tiles: hw,
+        });
     }
 
     /// Advances one tick.

@@ -230,6 +230,8 @@ export class City {
   private layer = new THREE.Group();
   // Building sites.
   private siteData: Uint32Array[] = [];
+  /** Highways between towns (from the manifest). */
+  highways: { a: number; b: number; length_tiles: number }[] = [];
   // Incidents: a floating marker for a few hours, police tape around serious ones.
   private incidentData: { arr: Uint32Array; tick: number }[] = [];
   private incidentKey = '';
@@ -583,28 +585,30 @@ export class City {
     if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
   }
 
-  /** Straight highway strips between neighbouring regions' map edges. */
+  /** Highways (from the manifest) between the two towns' exits; drawn as straight or
+   * L-shaped strips. */
   private addHighways(statics: RegionStatic[]) {
-    const ends = statics.map((s) => {
-      const out: { x: number; z: number }[] = [];
-      for (let i = 0; i < s.roads.length; i += 5) {
-        if (s.roads[i + 4] !== 2) continue;
-        for (const [x, y] of [[s.roads[i], s.roads[i + 1]], [s.roads[i + 2], s.roads[i + 3]]]) {
-          if (x === 0 || x === s.info.width - 1) out.push({ x: s.info.origin[0] + x + 0.5, z: s.info.origin[1] + y + 0.5 });
-        }
-      }
-      return out;
-    });
     const mat = new THREE.MeshLambertMaterial({ color: 0x4a505c });
-    for (let i = 0; i + 1 < statics.length; i++) {
-      const a = ends[i].sort((p, q) => q.x - p.x)[0];
-      const b = ends[i + 1].sort((p, q) => p.x - q.x)[0];
+    const exit = (from: number, to: number) => {
+      const s = statics.find((x) => x.info.id === from);
+      const g = s?.info.gateways.find((x) => x.to_region === to);
+      if (!s || !g || g.x === undefined || g.y === undefined) return null;
+      return { x: s.info.origin[0] + g.x + 0.5, z: s.info.origin[1] + g.y + 0.5 };
+    };
+    const strip = (ax: number, az: number, bx: number, bz: number) => {
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 0.5) return;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(len + 1.4, 0.02, 1.4), mat);
+      m.position.set((ax + bx) / 2, 0.01, (az + bz) / 2);
+      m.rotation.y = -Math.atan2(bz - az, bx - ax);
+      this.layer.add(m);
+    };
+    for (const hw of this.highways) {
+      const a = exit(hw.a, hw.b);
+      const b = exit(hw.b, hw.a);
       if (!a || !b) continue;
-      const len = Math.hypot(b.x - a.x, b.z - a.z);
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 1.4), mat);
-      strip.position.set((a.x + b.x) / 2, 0.01, (a.z + b.z) / 2);
-      strip.rotation.y = -Math.atan2(b.z - a.z, b.x - a.x);
-      this.layer.add(strip);
+      strip(a.x, a.z, b.x, a.z);
+      strip(b.x, a.z, b.x, b.z);
     }
   }
 

@@ -792,6 +792,7 @@ impl Region {
                     | NewsKind::Arrest
                     | NewsKind::Verdict
                     | NewsKind::Acquittal => self.building_name(n.subject),
+                    NewsKind::TownFounded => self.region_label(n.subject as u16),
                     NewsKind::Homicide => {
                         format!("{} {}", self.names.get(n.subject), self.names.get(n.n))
                     }

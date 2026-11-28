@@ -433,7 +433,7 @@ impl Region {
     }
 
     /// Living, local members of a household.
-    fn household_members(&self, hh: u32) -> Vec<AgentId> {
+    pub(crate) fn household_members(&self, hh: u32) -> Vec<AgentId> {
         (0..self.agents.len() as u32)
             .filter(|a| self.agents.household[*a as usize] == hh && self.resident(*a))
             .collect()
@@ -1430,7 +1430,7 @@ impl Region {
         }
     }
 
-    fn send_movers(&mut self, members: &[AgentId], dest: u16, t: Tick) {
+    pub(crate) fn send_movers(&mut self, members: &[AgentId], dest: u16, t: Tick) {
         let idx = |x: u32| {
             members
                 .iter()

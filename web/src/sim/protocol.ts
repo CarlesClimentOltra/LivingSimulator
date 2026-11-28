@@ -13,9 +13,30 @@ export interface Manifest {
   frontier_tick: number;
   checkpoints: { tick: number; regions: { id: number; hash: string; bytes: number }[] }[];
   logs: { region: number; from: number; to: number; bytes: number }[];
-  regions: { id: number; name: string; template: string; population: number; origin: [number, number]; size: number }[];
+  regions: {
+    id: number;
+    name: string;
+    template: string;
+    population: number;
+    origin: [number, number];
+    size: number;
+    summary?: RegionSummary;
+    static_file?: string;
+  }[];
   highways: { a: number; b: number; length_tiles: number }[];
   runner: { finished_at_ms: number; duration_ms: number; simulated_ticks: number; rebased: boolean };
+}
+
+export interface RegionSummary {
+  households: number;
+  buildings: number;
+  unemployment_permille: number;
+  treasury_cents: number;
+  under_construction: number;
+  incidents_30d: number;
+  inmates: number;
+  founded_at: number;
+  parent: number | null;
 }
 
 export interface RegionInfo {
@@ -25,7 +46,7 @@ export interface RegionInfo {
   height: number;
   origin: [number, number];
   population: number;
-  gateways: { building: number; to_region: number; to_name: string; node: number }[];
+  gateways: { building: number; to_region: number; to_name: string; node: number; x?: number; y?: number }[];
 }
 
 export interface RegionStatic {
@@ -33,6 +54,8 @@ export interface RegionStatic {
   tiles: Uint8Array;
   buildings: Uint32Array;
   roads: Uint32Array;
+  /** Simulated in this browser (people, cards, stats) or only drawn from a static file. */
+  live: boolean;
 }
 
 export interface RegionDynamic {
@@ -49,7 +72,8 @@ export interface RegionDynamic {
 }
 
 export type ToWorker =
-  | { type: 'init'; base: string }
+  | { type: 'init'; base: string; focus?: number }
+  | { type: 'focus'; region: number }
   | { type: 'card'; region: number; agent: number; req: number }
   | { type: 'building'; region: number; building: number; req: number }
   | { type: 'stats'; region: number; req: number }
@@ -60,7 +84,9 @@ export type FromWorker =
   | { type: 'ready'; manifest: Manifest; content: string; regions: RegionStatic[] }
   | { type: 'tick'; regions: RegionDynamic[]; routes: { key: string; pts: Int32Array }[]; catchingUp: boolean }
   /** The map or the buildings changed (new sites, streets, openings, growth). */
-  | { type: 'static'; regions: RegionStatic[] }
+  | { type: 'static'; regions: RegionStatic[]; highways?: Manifest['highways'] }
+  /** A town is being downloaded / caught up (null when done). */
+  | { type: 'busy'; message: string | null }
   | { type: 'reply'; req: number; json: string }
   | { type: 'status'; stalled: boolean; message: string }
   | { type: 'reload'; reason: string }
