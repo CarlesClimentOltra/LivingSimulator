@@ -84,6 +84,43 @@ pub struct BuildingCard {
     pub present: u16,
     pub occupants: Vec<(u32, String)>,
     pub firm: Option<FirmInfo>,
+    /// Building site: what is being built and how far it got.
+    pub site: Option<SiteInfo>,
+    /// Who owns the homes (buildings built since Phase 4).
+    pub landlord: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SiteInfo {
+    pub building: String,
+    pub phase: String,
+    pub progress_permille: u32,
+    pub phase_permille: u32,
+    pub funder: String,
+    pub builder: String,
+    pub days: u32,
+    pub cost_cents: i64,
+    pub workers_here: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ProjectLine {
+    pub site: u32,
+    pub what: String,
+    pub phase: String,
+    pub progress_permille: u32,
+    pub funder: String,
+    pub days: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ConstructionStats {
+    pub open: Vec<ProjectLine>,
+    pub started: u32,
+    pub finished: u32,
+    pub streets: u32,
+    pub units_yesterday: u32,
+    pub map_tiles: u32,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -135,6 +172,7 @@ pub struct RegionStats {
     pub events_total: u64,
     pub economy: EconomyStats,
     pub demography: DemographyStats,
+    pub construction: ConstructionStats,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -210,7 +248,24 @@ impl Region {
         if n != crate::names::NO_NAME {
             return self.names.get(n).to_string();
         }
-        let def = &content().buildings[self.buildings.def[i] as usize];
+        // A building site is named after what is being built there.
+        let def = match self
+            .site_project(b)
+            .filter(|p| p.phase != crate::systems::construction::Phase::Finished)
+            .map(|p| &p.work)
+        {
+            Some(crate::systems::construction::Work::Building { def, .. }) => {
+                return format!(
+                    "Future {} on {}",
+                    content().buildings[*def as usize].name.to_lowercase(),
+                    self.streets
+                        .get(self.buildings.street[i] as usize)
+                        .map(|s| self.names.get(*s))
+                        .unwrap_or("")
+                );
+            }
+            _ => &content().buildings[self.buildings.def[i] as usize],
+        };
         let street = self
             .streets
             .get(self.buildings.street[i] as usize)
@@ -292,11 +347,18 @@ impl Region {
             JournalKind::Shopped => format_money(arg as i64 * 100),
             _ => format_money(subject as i64),
         };
-        let activity = c
-            .activities
-            .get(arg as usize)
-            .map(|a| a.doing.clone())
-            .unwrap_or_default();
+        let activity = match kind {
+            JournalKind::Invested => c
+                .buildings
+                .get(arg as usize)
+                .map(|d| d.name.to_lowercase())
+                .unwrap_or_default(),
+            _ => c
+                .activities
+                .get(arg as usize)
+                .map(|a| a.doing.clone())
+                .unwrap_or_default(),
+        };
         tpl.replace("{place}", &place)
             .replace("{amount}", &amount)
             .replace("{activity}", &activity)
@@ -600,6 +662,7 @@ impl Region {
             events_total: self.events,
             economy: self.economy_stats(),
             demography: self.demography_stats(),
+            construction: self.construction_stats(),
         };
         let mut by_act = vec![0u32; c.activities.len()];
         let mut needs = [0u64; livingsim_content::NEED_COUNT];
@@ -680,6 +743,12 @@ impl Region {
                         format!("{} and {}", self.names.get(n.subject), self.names.get(n.n))
                     }
                     NewsKind::Migration => n.subject.to_string(),
+                    NewsKind::WorksStart => c
+                        .buildings
+                        .get(n.subject as usize)
+                        .map(|d| d.name.to_lowercase())
+                        .unwrap_or_default(),
+                    NewsKind::Inauguration => self.building_name(n.subject),
                     NewsKind::Commuters => self.region_label(n.subject as u16),
                     _ => self.name().to_string(),
                 };
@@ -809,7 +878,118 @@ impl Region {
             present: self.buildings.present.get(b as usize).copied().unwrap_or(0),
             occupants,
             firm,
+            site: self.site_info(b),
+            landlord: self.home_owner(b).map(|o| self.owner_label(o)),
         })
+    }
+
+    fn owner_label(&self, o: crate::systems::construction::HomeOwner) -> String {
+        use crate::systems::construction::HomeOwner;
+        match o {
+            HomeOwner::Municipal => "the municipal housing company".into(),
+            HomeOwner::Agency(f) => {
+                self.building_name(self.systems.economy.firms[f as usize].building)
+            }
+            HomeOwner::Landlord(a) => self.full_name(a),
+        }
+    }
+
+    fn funder_label(&self, f: crate::systems::construction::Funder) -> String {
+        use crate::systems::construction::Funder;
+        match f {
+            Funder::Treasury => "the town hall".into(),
+            Funder::Firm(x) => self.building_name(self.systems.economy.firms[x as usize].building),
+            Funder::Agent(a) => self.full_name(a),
+        }
+    }
+
+    fn phase_label(p: &crate::systems::construction::Project) -> String {
+        use crate::systems::construction::{Phase, Work};
+        let road = matches!(p.work, Work::Road { .. });
+        let name = |ph: Phase| match (ph, road) {
+            (Phase::Foundation, false) => "foundations",
+            (Phase::Structure, false) => "structure",
+            (Phase::Roof, false) => "roof and finishing",
+            (Phase::Foundation, true) => "earthworks",
+            (Phase::Structure, true) => "paving",
+            (Phase::Finished, _) => "finished",
+            _ => "works",
+        };
+        match p.phase {
+            Phase::Planned => format!("waiting for money ({})", name(p.next)),
+            ph => name(ph).to_string(),
+        }
+    }
+
+    fn site_info(&self, b: BuildingId) -> Option<SiteInfo> {
+        use crate::systems::construction::{Phase, Work};
+        let p = self.site_project(b)?;
+        if p.phase == Phase::Finished {
+            return None;
+        }
+        let Work::Building { def, .. } = p.work else {
+            return None;
+        };
+        let k = &content().construction;
+        let units: u32 = p.units.iter().sum();
+        let ph = match p.phase {
+            Phase::Planned => p.next,
+            x => x,
+        };
+        let idx = match ph {
+            Phase::Foundation => 0,
+            Phase::Structure => 1,
+            _ => 2,
+        };
+        let need = p.units[idx].max(1);
+        let firm = p.builder;
+        Some(SiteInfo {
+            building: content().buildings[def as usize].name.clone(),
+            phase: Region::phase_label(p),
+            progress_permille: p.progress(),
+            phase_permille: if p.phase == Phase::Planned {
+                0
+            } else {
+                (p.done * 1000 / need).min(1000)
+            },
+            funder: self.funder_label(p.funder),
+            builder: if firm == NONE {
+                "outside contractors".into()
+            } else {
+                self.building_name(self.systems.economy.firms[firm as usize].building)
+            },
+            days: (self.tick.saturating_sub(p.started) / crate::time::TICKS_PER_DAY),
+            cost_cents: units as i64 * (k.labour_per_unit_cents + k.materials_per_unit_cents),
+            workers_here: self.buildings.present.get(b as usize).copied().unwrap_or(0) as u32,
+        })
+    }
+
+    pub fn construction_stats(&self) -> ConstructionStats {
+        use crate::systems::construction::Work;
+        let c = &self.systems.construction;
+        let open = self
+            .open_projects()
+            .into_iter()
+            .map(|p| ProjectLine {
+                site: match p.work {
+                    Work::Building { site, .. } => site,
+                    Work::Road { .. } => NONE,
+                },
+                what: self.project_label(p),
+                phase: Region::phase_label(p),
+                progress_permille: p.progress(),
+                funder: self.funder_label(p.funder),
+                days: (self.tick.saturating_sub(p.started) / crate::time::TICKS_PER_DAY),
+            })
+            .collect();
+        ConstructionStats {
+            open,
+            started: c.total.started + c.today.started,
+            finished: c.total.finished + c.today.finished,
+            streets: c.total.streets + c.today.streets,
+            units_yesterday: c.yesterday.units,
+            map_tiles: self.map.width as u32 * self.map.height as u32,
+        }
     }
 
     pub fn economy_stats(&self) -> EconomyStats {

@@ -107,7 +107,9 @@ impl World {
             let size = region_size(*tpl) as i32;
             // Regions are laid out west to east, vertically centred on the first one.
             let first = region_size(specs[0].0) as i32;
-            r.origin = (x, (first - size) / 2);
+            // The growth ring around the town extends the map on every side.
+            let grow = (r.map.width as i32 - size) / 2;
+            r.origin = (x - grow, (first - size) / 2 - grow);
             x += size + if connect { hw as i32 / 4 } else { 64 };
             regions.push(r);
         }

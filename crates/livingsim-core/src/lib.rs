@@ -29,6 +29,7 @@ pub mod replay;
 pub mod rng;
 pub mod roads;
 pub mod snapshot;
+pub mod snapshot_v4;
 pub mod systems;
 pub mod time;
 pub mod world;

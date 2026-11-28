@@ -371,6 +371,7 @@ impl Region {
         self.demography_daily(t);
         self.economy_daily(t);
         self.commuting_daily(t);
+        self.construction_daily(t);
         let mut ctx = DailyContext {
             tick: t,
             population: self.population(),

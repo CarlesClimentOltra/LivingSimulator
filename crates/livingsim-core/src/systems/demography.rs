@@ -372,10 +372,28 @@ impl Region {
         } else {
             TenureKind::Municipal
         };
-        let landlord = if kind == TenureKind::Agency {
+        let mut landlord = if kind == TenureKind::Agency {
             agencies[(roll as usize) % agencies.len()]
         } else {
             NONE
+        };
+        // Homes built in Phase 4 are rented out by whoever paid for them.
+        use super::construction::HomeOwner;
+        let kind = match self.home_owner(home) {
+            Some(HomeOwner::Municipal) => TenureKind::Municipal,
+            Some(HomeOwner::Agency(f)) if self.systems.economy.firms[f as usize].open => {
+                landlord = f;
+                TenureKind::Agency
+            }
+            Some(HomeOwner::Landlord(o)) if self.resident(o) => {
+                landlord = o;
+                TenureKind::PrivateLandlord
+            }
+            Some(_) => {
+                landlord = NONE;
+                TenureKind::Municipal
+            }
+            None => kind,
         };
         let (cx, cy) = (self.map.width as i64 / 2, self.map.height as i64 / 2);
         let half = (self.map.width as i64 / 2).max(1);
@@ -1287,6 +1305,28 @@ impl Region {
         self.journal(b, t, JournalKind::Adopted, 0, child);
         self.journal(child, t, JournalKind::WasAdopted, 0, 0);
         self.systems.demography.today.adoptions += 1;
+    }
+
+    /// Children waiting for a daycare or school place get one (after a new one opens).
+    pub(crate) fn enrol_waiting_children(&mut self, t: Tick) {
+        let cat = catalog();
+        for a in 0..self.agents.len() as u32 {
+            if !self.resident(a) {
+                continue;
+            }
+            let i = a as usize;
+            let age = self.age(a, t);
+            let waiting = ((1..6).contains(&age)
+                && self.agents.schedule[i] == cat.schedule_toddler)
+                || ((6..18).contains(&age) && self.agents.work[i] == NONE);
+            if waiting {
+                self.enrol_child(a, t);
+                let w = self.agents.work[i];
+                if w != NONE {
+                    self.journal(a, t, JournalKind::StartedSchool, 0, w);
+                }
+            }
+        }
     }
 
     /// Puts a child into daycare or school according to age.

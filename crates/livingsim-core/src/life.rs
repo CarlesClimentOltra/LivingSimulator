@@ -446,6 +446,12 @@ impl Region {
                 } else {
                     c.work_activity
                 };
+                // Builders report to the site they are working on.
+                let work = if act == c.work_activity {
+                    self.builder_site(a).unwrap_or(work)
+                } else {
+                    work
+                };
                 let mode = self.mode_for(a, place, work, t);
                 let travel = if place == work {
                     0

@@ -46,6 +46,8 @@ pub struct Catalog {
     /// Fallback when nothing else scores: first `Relax` activity.
     pub relax_activity: u16,
     pub schedule_toddler: u16,
+    /// Construction workers (they go to building sites).
+    pub profession_builder: u16,
     pub schedule_child: u16,
     pub schedule_university: u16,
     pub schedule_retired: u16,
@@ -135,6 +137,7 @@ fn build(content: Content) -> Catalog {
         school_activity: first(ActivityKind::School),
         relax_activity: first(ActivityKind::Relax),
         schedule_toddler: s("toddler"),
+        profession_builder: content.profession("builder").unwrap_or(u16::MAX - 1),
         schedule_child: s("child_school"),
         schedule_university: s("student_university"),
         schedule_retired: s("retired"),

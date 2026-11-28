@@ -506,6 +506,7 @@ pub fn generate_region(
     populate(&mut r, &mut rng, start);
     r.bootstrap_economy();
     r.bootstrap_demography();
+    r.bootstrap_construction();
     let pop = r.population();
     r.news.push(NewsItem {
         tick: start,
@@ -601,7 +602,7 @@ fn place_building(
     name_building(r, rng, b, style);
 }
 
-fn name_building(r: &mut Region, rng: &mut Rng, b: BuildingId, style: u16) {
+pub(crate) fn name_building(r: &mut Region, rng: &mut Rng, b: BuildingId, style: u16) {
     let c = content();
     let d = &c.buildings[r.buildings.def[b as usize] as usize];
     if d.name_patterns.is_empty() {
@@ -706,12 +707,20 @@ fn populate(r: &mut Region, rng: &mut Rng, start: Tick) {
         match rng.weighted(&[27, 24, 30, 7, 8, 4]).unwrap() {
             0 => {
                 // Singles are mostly young adults.
-                let age = if rng.permille(650) { rng.range(19, 38) } else { rng.range(39, 64) };
+                let age = if rng.permille(650) {
+                    rng.range(19, 38)
+                } else {
+                    rng.range(39, 64)
+                };
                 let f = rng.permille(500);
                 new_agent(r, rng, hh, f, age, family, start);
             }
             k @ (1 | 4) => {
-                let age = if k == 4 { adult_age(rng, 66, 90) } else { rng.range(22, 65) };
+                let age = if k == 4 {
+                    adult_age(rng, 66, 90)
+                } else {
+                    rng.range(22, 65)
+                };
                 let a = new_agent(r, rng, hh, true, age, family, start);
                 let pa = (age + rng.range(-4, 5)).clamp(19, 95);
                 let b = new_agent(r, rng, hh, false, pa, family, start);

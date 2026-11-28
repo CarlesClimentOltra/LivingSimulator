@@ -17,7 +17,7 @@ use bincode::Options;
 use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAGIC: &[u8; 4] = b"LSIM";
-pub const FORMAT_VERSION: u16 = 4;
+pub const FORMAT_VERSION: u16 = 5;
 pub const HEADER_LEN: usize = 4 + 2 + 32 + 1 + 2 + 4 + 32;
 
 #[repr(u8)]
@@ -170,13 +170,20 @@ fn decode(b: &[u8], kind: Kind) -> Result<(Header, Vec<u8>), SnapshotError> {
 /// When the layout changes: bump `FORMAT_VERSION`, copy the old types into a module
 /// `snapshot::vN` (frozen forever), and add a step `N => vN::to_next(payload)` here. Add a
 /// fixture of the old format under `tests/fixtures/` so CI proves the migration works.
-pub fn migrate(from: u16, _kind: Kind, payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
+pub fn migrate(from: u16, kind: Kind, mut payload: Vec<u8>) -> Result<Vec<u8>, SnapshotError> {
     // Formats 1–3 stored content indices without their names, and migrations between them
     // shifted those indices when `/data` gained entries. They cannot be trusted, so they are
     // not migrated: the runner regenerates the world from its seed instead.
-    // Future layout changes add frozen types and an upgrade step here.
-    if from != FORMAT_VERSION {
+    if !(4..=FORMAT_VERSION).contains(&from) {
         return Err(SnapshotError::UnsupportedFormat(from));
+    }
+    let mut v = from;
+    while v < FORMAT_VERSION {
+        payload = match v {
+            4 => crate::snapshot_v4::to_next(kind, payload)?,
+            _ => return Err(SnapshotError::UnsupportedFormat(v)),
+        };
+        v += 1;
     }
     Ok(payload)
 }
