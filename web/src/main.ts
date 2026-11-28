@@ -8,7 +8,7 @@ import { People } from './render/people';
 import { Stage } from './render/scene';
 import type { FromWorker, Manifest, RegionStatic, ToWorker } from './sim/protocol';
 import { formatClock, formatDate, tickAt } from './sim/time';
-import { renderAgentCard, renderBuildingCard, renderNews, renderStats, type AgentCard, type BuildingCard, type NewsLine, type Stats } from './ui/panels';
+import { renderAgentCard, renderBuildingCard, renderNews, renderStats, setSiteHandler, type AgentCard, type BuildingCard, type NewsLine, type Stats } from './ui/panels';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -57,10 +57,18 @@ worker.onmessage = (ev: MessageEvent<FromWorker>) => {
       people?.addRoutes(m.routes);
       for (const r of m.regions) {
         people?.setAgents(r.id, r.agents);
-        city?.setOccupancy(statics.findIndex((s) => s.info.id === r.id), r.occupancy);
+        const ri = statics.findIndex((s) => s.info.id === r.id);
+        city?.setOccupancy(ri, r.occupancy);
+        city?.setSites(ri, r.sites);
         simTick = r.tick;
       }
       catchingUp = m.catchingUp;
+      break;
+    case 'static':
+      if (!city) break;
+      statics = m.regions;
+      city.rebuild(m.regions);
+      people.clearRoutes();
       break;
     case 'reply':
       pending.get(m.req)?.(m.json);
@@ -180,6 +188,18 @@ async function openBuilding(region: number, building: number) {
   $('card').classList.remove('hidden');
 }
 
+setSiteHandler((b) => {
+  const s = statics[activeRegion];
+  if (!s) return;
+  openBuilding(s.info.id, b);
+  const o = b * 9;
+  stage.lookAt(s.info.origin[0] + s.buildings[o + 1] + s.buildings[o + 3] / 2, s.info.origin[1] + s.buildings[o + 2] + s.buildings[o + 4] / 2);
+  if (stage.camera.zoom < 2) {
+    stage.camera.zoom = 2.5;
+    stage.camera.updateProjectionMatrix();
+  }
+});
+
 function closeCard() {
   selected = null;
   following = false;
@@ -204,6 +224,12 @@ stage.renderer.domElement.addEventListener('click', (e) => {
   const hit = ray.intersectObject(city.bodies, false)[0];
   if (hit && hit.instanceId !== undefined) {
     const owner = city.bodyOwner[hit.instanceId];
+    openBuilding(statics[owner >>> 20].info.id, owner & 0xfffff);
+    return;
+  }
+  const site = ray.intersectObject(city.siteBodies, false)[0];
+  if (site && site.instanceId !== undefined) {
+    const owner = city.siteOwner[site.instanceId];
     openBuilding(statics[owner >>> 20].info.id, owner & 0xfffff);
   }
 });

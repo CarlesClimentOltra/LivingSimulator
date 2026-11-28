@@ -117,6 +117,11 @@ export class People {
     }
   }
 
+  /** Forgets route shapes (the street network or the map changed). */
+  clearRoutes() {
+    this.routes.clear();
+  }
+
   setAgents(region: number, agents: Uint32Array) {
     this.dyn.set(region, agents);
   }
@@ -153,7 +158,7 @@ export class People {
    */
   private buildingSpot(reg: CityRegion, b: number, id: number, household: number, out: THREE.Vector3, floors: number, dwellings: number): number {
     const o = b * BUILDING_STRIDE;
-    const outdoor = reg.outdoor[b] === 1;
+    const outdoor = reg.outdoor[b] !== 0;
     const [x, y, w, d] = outdoor
       ? [reg.buildings[o + 5], reg.buildings[o + 6], reg.buildings[o + 7], reg.buildings[o + 8]]
       : [reg.buildings[o + 1], reg.buildings[o + 2], reg.buildings[o + 3], reg.buildings[o + 4]];
@@ -202,6 +207,7 @@ export class People {
         let pose = 0; // 0 stand/walk, 1 sit, 2 lie
         let car = false;
         let walking = false;
+        let onSite = false;
         if (act === R_TRAVEL) {
           car = (info & F_CAR) !== 0;
           const rt = this.routes.get(`${reg.id}/${routeKey(a[i + A_FROM], a[i + A_TO], car)}`);
@@ -215,7 +221,8 @@ export class People {
           const place = a[i + A_PLACE];
           if (place === NONE) continue;
           const def = this.content.buildings[reg.buildings[place * BUILDING_STRIDE]];
-          const outdoor = reg.outdoor[place] === 1;
+          const outdoor = reg.outdoor[place] !== 0;
+          onSite = reg.outdoor[place] === 2;
           if (!outdoor) {
             if (!this.interiors || far) continue;
             const bx = reg.origin[0] + reg.buildings[place * BUILDING_STRIDE + 1];
@@ -261,8 +268,9 @@ export class People {
         this.bodies.setMatrixAt(ni, m);
         this.heads.setMatrixAt(ni, m);
         this.legs.setMatrixAt(ni, m);
-        this.bodies.setColorAt(ni, col.setHex(SHIRTS[seed % SHIRTS.length]));
-        this.heads.setColorAt(ni, col.setHex(SKINS[(seed >> 4) % SKINS.length]));
+        // Builders on a site wear high-visibility vests and yellow helmets.
+        this.bodies.setColorAt(ni, col.setHex(onSite ? 0xff8f00 : SHIRTS[seed % SHIRTS.length]));
+        this.heads.setColorAt(ni, col.setHex(onSite ? 0xffd600 : SKINS[(seed >> 4) % SKINS.length]));
         this.bodyOwner[ni++] = key;
       }
     });

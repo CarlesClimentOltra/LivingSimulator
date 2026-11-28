@@ -113,6 +113,29 @@ export interface BuildingCard {
   present: number;
   occupants: [number, string][];
   firm: FirmInfo | null;
+  site: SiteInfo | null;
+  landlord: string | null;
+}
+
+export interface SiteInfo {
+  building: string;
+  phase: string;
+  progress_permille: number;
+  phase_permille: number;
+  funder: string;
+  builder: string;
+  days: number;
+  cost_cents: number;
+  workers_here: number;
+}
+
+export interface ConstructionStats {
+  open: { site: number; what: string; phase: string; progress_permille: number; funder: string; days: number }[];
+  started: number;
+  finished: number;
+  streets: number;
+  units_yesterday: number;
+  map_tiles: number;
 }
 
 export interface Stats {
@@ -138,6 +161,7 @@ export interface Stats {
   wages_yesterday_cents: number;
   economy: EconomyStats;
   demography: DemographyStats;
+  construction: ConstructionStats;
 }
 
 export interface NewsLine {
@@ -292,12 +316,38 @@ export function renderBuildingCard(el: HTMLElement, b: BuildingCard, onPerson: (
         ),
       ]
     : [];
-  const meta = `${b.kind} · ${b.floors} floor${b.floors > 1 ? 's' : ''}${b.dwellings ? ` · ${b.dwellings} home${b.dwellings > 1 ? 's' : ''}` : ''} · ${b.present} inside`;
+  const site = b.site;
+  const works = site
+    ? [
+        h('h3', {}, `Building a new ${site.building.toLowerCase()}`),
+        h('div', { class: 'progress' }, h('div', { style: `width:${site.progress_permille / 10}%` })),
+        h(
+          'dl',
+          { class: 'facts' },
+          h('dt', {}, 'Now'),
+          h('dd', {}, site.phase + (site.phase_permille ? ` (${Math.round(site.phase_permille / 10)}%)` : '')),
+          h('dt', {}, 'Overall'),
+          h('dd', {}, `${Math.round(site.progress_permille / 10)}% · ${site.days} day${site.days === 1 ? '' : 's'} of works`),
+          h('dt', {}, 'Paid by'),
+          h('dd', {}, site.funder),
+          h('dt', {}, 'Built by'),
+          h('dd', {}, site.builder),
+          h('dt', {}, 'Budget'),
+          h('dd', {}, money(site.cost_cents, 0)),
+          h('dt', {}, 'Workers'),
+          h('dd', {}, `${site.workers_here} on site now`),
+        ),
+      ]
+    : [];
+  const owner = b.landlord ? h('p', { class: 'muted' }, `Homes let by ${b.landlord}.`) : null;
+  const meta = site ? 'Construction site' : `${b.kind} · ${b.floors} floor${b.floors > 1 ? 's' : ''}${b.dwellings ? ` · ${b.dwellings} home${b.dwellings > 1 ? 's' : ''}` : ''} · ${b.present} inside`;
   el.replaceChildren(
     ...([
       h('div', { class: 'card-head' }, h('div', { class: 'avatar b' }, '⌂'), h('div', {}, h('h2', {}, b.name), h('div', { class: 'muted' }, meta))),
+      ...works,
+      owner,
       ...firm,
-      h('h3', {}, 'Inside now'),
+      h('h3', {}, site ? 'On site now' : 'Inside now'),
       b.occupants.length
         ? h(
             'ul',
@@ -352,9 +402,48 @@ export function renderStats(el: HTMLElement, s: Stats) {
       stat('wages paid', money(s.wages_yesterday_cents, 0)),
       stat('avg savings', money(s.avg_money_cents, 0)),
     ),
+    ...constructionSection(s.construction),
     ...economySection(s.economy),
     ...demographySection(s.demography),
   );
+}
+
+let onSite: ((building: number) => void) | null = null;
+/** Called when a construction project is clicked in the stats panel. */
+export function setSiteHandler(f: (building: number) => void) {
+  onSite = f;
+}
+
+function constructionSection(c: ConstructionStats | undefined): HTMLElement[] {
+  if (!c) return [];
+  const rows = c.open.map((p) => {
+    const name = p.site !== 0xffffffff ? h('a', { href: '#' }, p.what) : h('span', {}, p.what);
+    if (p.site !== 0xffffffff) {
+      name.addEventListener('click', (e) => {
+        e.preventDefault();
+        onSite?.(p.site);
+      });
+    }
+    return h(
+      'div',
+      { class: 'project' },
+      h('div', { class: 'project-head' }, name, h('span', { class: 'muted' }, `${Math.round(p.progress_permille / 10)}%`)),
+      h('div', { class: 'progress' }, h('div', { style: `width:${p.progress_permille / 10}%` })),
+      h('div', { class: 'muted small' }, `${p.phase} · ${p.funder} · day ${p.days + 1}`),
+    );
+  });
+  return [
+    h('h3', {}, 'Construction'),
+    h(
+      'div',
+      { class: 'stats-grid' },
+      stat('under way', c.open.length),
+      stat('finished', c.finished),
+      stat('new streets', c.streets),
+      stat('builder shifts yesterday', c.units_yesterday),
+    ),
+    ...(rows.length ? rows : [h('p', { class: 'muted' }, 'Nothing is being built right now: the town has what it needs.')]),
+  ];
 }
 
 export function renderNews(el: HTMLElement, cityName: string, news: NewsLine[]) {
