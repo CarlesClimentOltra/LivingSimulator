@@ -580,6 +580,14 @@ impl Region {
         if kind == FirmKind::Construction {
             self.construction_shift_done(a, f, t);
         }
+        let police = content().tag("police");
+        if police.is_some_and(|p| {
+            content().buildings[self.buildings.def[work as usize] as usize]
+                .tags
+                .contains(&p)
+        }) {
+            self.police_shift(t);
+        }
         self.journal(
             a,
             t,

@@ -20,6 +20,8 @@ pub struct ContentIds {
     pub schedules: Vec<String>,
     pub activities: Vec<String>,
     pub goods: Vec<String>,
+    /// Since format 6 (Phase 5).
+    pub crimes: Vec<String>,
 }
 
 impl ContentIds {
@@ -32,6 +34,7 @@ impl ContentIds {
             schedules: c.schedules.iter().map(|x| x.id.clone()).collect(),
             activities: c.activities.iter().map(|x| x.id.clone()).collect(),
             goods: c.goods.iter().map(|x| x.id.clone()).collect(),
+            crimes: c.crimes.iter().map(|x| x.id.clone()).collect(),
         }
     }
 }
@@ -67,6 +70,19 @@ impl Region {
         let s = table(&old.schedules, &now.schedules);
         let a = table(&old.activities, &now.activities);
         let g = table(&old.goods, &now.goods);
+        let cr = table(&old.crimes, &now.crimes);
+        for x in self.systems.crime.incidents.iter_mut() {
+            x.crime = map(&cr, x.crime);
+        }
+        for x in self.systems.crime.planned.iter_mut() {
+            x.crime = map(&cr, x.crime);
+        }
+        for m in self.systems.justice.inmates.values_mut() {
+            m.crime = map(&cr, m.crime);
+        }
+        for m in self.systems.justice.guests.values_mut() {
+            m.crime = map(&cr, m.crime);
+        }
 
         for d in self.buildings.def.iter_mut() {
             *d = map(&b, *d);

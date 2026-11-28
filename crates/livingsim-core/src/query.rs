@@ -114,6 +114,30 @@ pub struct ProjectLine {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct IncidentLine {
+    pub building: u32,
+    pub what: String,
+    pub place: String,
+    pub when: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SafetyStats {
+    /// (crime name, incidents in the last 30 days).
+    pub by_crime_30d: Vec<(String, u32)>,
+    pub solved_30d: u32,
+    pub convictions_30d: u32,
+    pub inmates: u32,
+    pub inmates_from_elsewhere: u32,
+    pub officers: u32,
+    /// Average block safety (‰).
+    pub safety: u32,
+    pub recent: Vec<IncidentLine>,
+    pub history: Vec<crate::systems::crime::CrimeSample>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct ConstructionStats {
     pub open: Vec<ProjectLine>,
     pub started: u32,
@@ -173,6 +197,7 @@ pub struct RegionStats {
     pub economy: EconomyStats,
     pub demography: DemographyStats,
     pub construction: ConstructionStats,
+    pub safety: SafetyStats,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -589,6 +614,19 @@ impl Region {
         if d.adopted(a) {
             notes.push("Adopted".to_string());
         }
+        if let Some(m) = self.systems.justice.inmates.get(&a) {
+            notes.push(if m.custody {
+                format!("In custody, awaiting trial ({})", format_when(m.release))
+            } else {
+                format!("In jail until {}", format_when(m.release))
+            });
+        }
+        if let Some(n) = self.systems.crime.records.get(&a) {
+            notes.push(format!(
+                "Criminal record: {n} conviction{}",
+                if *n == 1 { "" } else { "s" }
+            ));
+        }
         if d.dflags
             .get(i)
             .is_some_and(|f| f & crate::systems::demography::dflags::ORPHAN != 0)
@@ -663,6 +701,7 @@ impl Region {
             economy: self.economy_stats(),
             demography: self.demography_stats(),
             construction: self.construction_stats(),
+            safety: self.safety_stats(),
         };
         let mut by_act = vec![0u32; c.activities.len()];
         let mut needs = [0u64; livingsim_content::NEED_COUNT];
@@ -749,11 +788,30 @@ impl Region {
                         .map(|d| d.name.to_lowercase())
                         .unwrap_or_default(),
                     NewsKind::Inauguration => self.building_name(n.subject),
+                    NewsKind::CrimeReport
+                    | NewsKind::Arrest
+                    | NewsKind::Verdict
+                    | NewsKind::Acquittal => self.building_name(n.subject),
+                    NewsKind::Homicide => {
+                        format!("{} {}", self.names.get(n.subject), self.names.get(n.n))
+                    }
                     NewsKind::Commuters => self.region_label(n.subject as u16),
                     _ => self.name().to_string(),
                 };
+                let crime_idx = match kind {
+                    NewsKind::CrimeReport
+                    | NewsKind::Arrest
+                    | NewsKind::Verdict
+                    | NewsKind::Acquittal => Some((n.n & 0xFF) as usize),
+                    _ => None,
+                };
+                let crime = crime_idx
+                    .and_then(|k| c.crimes.get(k))
+                    .map(|x| x.name.clone())
+                    .unwrap_or_default();
                 let shown_n = match kind {
                     NewsKind::Obituary => n.n & 0xFF,
+                    NewsKind::Verdict => n.n >> 8,
                     _ => n.n,
                 };
                 let amount = match kind {
@@ -765,6 +823,8 @@ impl Region {
                         .replace("{amount}", &amount)
                         .replace("{n}", &shown_n.to_string())
                         .replace("{city}", self.name())
+                        .replace("{crime_lower}", &crime.to_lowercase())
+                        .replace("{crime}", &crime)
                 };
                 Some(NewsLine {
                     tick: n.tick,
@@ -962,6 +1022,76 @@ impl Region {
             cost_cents: units as i64 * (k.labour_per_unit_cents + k.materials_per_unit_cents),
             workers_here: self.buildings.present.get(b as usize).copied().unwrap_or(0) as u32,
         })
+    }
+
+    pub fn safety_stats(&self) -> SafetyStats {
+        use crate::systems::crime::Status;
+        let c = content();
+        let cr = &self.systems.crime;
+        let since = self.tick.saturating_sub(30 * crate::time::TICKS_PER_DAY);
+        let mut by = vec![0u32; c.crimes.len()];
+        let (mut solved, mut convicted) = (0, 0);
+        for x in cr.incidents.iter().filter(|x| x.tick >= since) {
+            if let Some(v) = by.get_mut(x.crime as usize) {
+                *v += 1;
+            }
+            if !matches!(x.status, Status::Open | Status::Cold) {
+                solved += 1;
+            }
+            if x.status == Status::Convicted {
+                convicted += 1;
+            }
+        }
+        let police = c.tag("police");
+        let officers = (0..self.agents.len())
+            .filter(|&a| {
+                let w = self.agents.work[a];
+                w != NONE
+                    && self.agents.profession[a] != u16::MAX
+                    && police.is_some_and(|p| {
+                        c.buildings[self.buildings.def[w as usize] as usize]
+                            .tags
+                            .contains(&p)
+                    })
+            })
+            .count() as u32;
+        let recent = cr
+            .incidents
+            .iter()
+            .rev()
+            .take(12)
+            .map(|x| IncidentLine {
+                building: x.building,
+                what: c.crimes[x.crime as usize].name.clone(),
+                place: self.building_name(x.building),
+                when: format_when(x.tick),
+                status: Self::status_label(x.status).into(),
+            })
+            .collect();
+        SafetyStats {
+            by_crime_30d: c.crimes.iter().map(|x| x.name.clone()).zip(by).collect(),
+            solved_30d: solved,
+            convictions_30d: convicted,
+            inmates: self.systems.justice.inmates.len() as u32,
+            inmates_from_elsewhere: self.systems.justice.guests.len() as u32,
+            officers,
+            safety: cr.history.last().map(|h| h.safety).unwrap_or(1000),
+            recent,
+            history: cr.history.clone(),
+        }
+    }
+
+    fn status_label(s: crate::systems::crime::Status) -> &'static str {
+        use crate::systems::crime::Status;
+        match s {
+            Status::Open => "under investigation",
+            Status::Solved => "suspect identified",
+            Status::Arrested => "suspect arrested, awaiting trial",
+            Status::Convicted => "convicted",
+            Status::Acquitted => "acquitted",
+            Status::Fined => "fined",
+            Status::Cold => "unsolved",
+        }
     }
 
     pub fn construction_stats(&self) -> ConstructionStats {

@@ -80,6 +80,30 @@ pub fn sites_packed(r: &Region) -> Vec<u32> {
     out
 }
 
+/// u32 values per incident in [`incidents_packed`].
+pub const INCIDENT_STRIDE: usize = 4;
+
+/// Incidents of the last simulated day: building, crime, tick, status (0 open, 1 solved,
+/// 2 arrested, 3 convicted, 4 acquitted, 5 fined, 6 unsolved).
+pub fn incidents_packed(r: &Region) -> Vec<u32> {
+    use crate::systems::crime::Status;
+    let since = r.tick.saturating_sub(crate::time::TICKS_PER_DAY);
+    let mut out = Vec::new();
+    for x in r.recent_incidents(since) {
+        let s = match x.status {
+            Status::Open => 0,
+            Status::Solved => 1,
+            Status::Arrested => 2,
+            Status::Convicted => 3,
+            Status::Acquitted => 4,
+            Status::Fined => 5,
+            Status::Cold => 6,
+        };
+        out.extend_from_slice(&[x.building, x.crime as u32, x.tick, s]);
+    }
+    out
+}
+
 /// Per agent slot: act, place, trip_from, trip_to, depart, arrive, info where
 /// info = flags | age << 8 | (shirt colour seed & 0xff) << 16, household.
 pub fn agents_packed(r: &Region) -> Vec<u32> {
